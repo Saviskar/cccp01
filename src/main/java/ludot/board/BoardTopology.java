@@ -13,6 +13,9 @@ public final class BoardTopology {
     /** Number of cells on the standard track (A-01). */
     public static final int TRACK_SIZE = 52;
 
+    /** Number of cells in each colour's home straight (A-05). */
+    public static final int HOME_STRAIGHT_LENGTH = 5;
+
     // A-02: X offset = 13 x colourIndex.
     private static final int COLOUR_X_STEP = 13;
 
