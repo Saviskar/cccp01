@@ -111,6 +111,10 @@ Rationale: the brief's own numbering convention runs clockwise.
 
 **A-45 — One effect at a time.** A piece has at most one active effect. A new Alpha or Beta effect replaces any existing one, and its duration restarts.
 
+**A-46 — Move-then-capture message order.** A capturing move publishes the movement message first, then the capture message — never the capture message alone. A standard-path capture publishes the "moves piece from L1 to L2" message, then the capture message. A base-to-X capture publishes the "moved to the starting point" message, then the capture message. The player-count line that follows a capture message reports the captured colour's board/base counts, since the capturing player's own counts don't change.
+
+**A-47 — Six always grants a bonus roll.** Rule 4's second roll for a six is unconditional: a player who rolls a six gets a bonus roll even if that six produced no legal move (e.g. no piece could leave base, or the only piece on the board couldn't move).
+
 ---
 
 ## 6. Player Behaviour Clarifications

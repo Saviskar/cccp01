@@ -39,11 +39,11 @@ Why this matters:
 
 | Package | Contents | Depends on |
 |---|---|---|
-| `domain` | `Colour`, `Direction`, `PieceId`, `Position`, `Piece`, `PieceEffect` | — |
-| `board` | `BoardTopology`, `BoardState`, `MysteryCell` | `domain` |
-| `moves` | `Move` and its implementations | `domain`, `board` |
+| `domain` | `Colour`, `Direction`, `PieceId`, `Position`, `PieceEffect` | — |
+| `board` | `BoardTopology`, `BoardState`, `MysteryCell`, `Piece`, `GameView` | `domain` |
+| `moves` | `Move` and its implementations, `LandingHandler` | `domain`, `board`, `events` |
 | `rules` | `MovementCalculator`, `MoveGenerator`, `LandingResolver`, `MysteryResolver`, `MysteryOutcome` implementations | `domain`, `board`, `moves`, `random`, `events` |
-| `players` | `PlayerStrategy`, `GameView`, four strategies | `domain`, `moves` |
+| `players` | `PlayerStrategy`, four strategies | `domain`, `moves`, `board` |
 | `engine` | `GameEngine`, `TurnController`, `RoundManager`, `Standings` | all of the above |
 | `events` | `GameEvent` types, `GameEventListener`, `EventBus` | `domain` |
 | `output` | `ConsoleReporter`, `MessageTemplates` | `events` |
@@ -57,14 +57,14 @@ Dependencies point one way only, towards `domain`. `players` does **not** depend
 | Component | Single responsibility |
 |---|---|
 | `BoardTopology` | Pure geometry: track size, X/Approach per colour, Alpha/Beta/Gamma, stepping one cell in a given direction. Immutable. No game state. |
-| `BoardState` | Where every piece is: track occupancy, home-straight occupancy, base and home. Answers occupancy queries; derives blocks. |
+| `BoardState` | Where every piece is: track occupancy, home-straight occupancy, base and home. Answers occupancy queries; derives blocks. The sole public gateway for mutating a `Piece`, so occupancy can never fall out of sync with a piece's own position. Implements `GameView`, the read-only subset of its query methods that `PlayerStrategy` depends on. |
 | `MysteryCell` | Mystery cell location, rounds remaining, previous location, spawn timer (A-28). |
-| `Piece` | One piece's state: position, original direction, capture count, counterclockwise crossing counter, active effect. |
+| `Piece` | One piece's state: position, original direction, capture count, counterclockwise crossing counter, active effect. Lives in `board`; its mutators are package-private, so only `BoardState` can change it. |
 | `PieceEffect` | Timed effect on a piece (Energised, Sick, Briefing): modifies steps, blocks movement, counts down. |
 | `MovementCalculator` | Walks a route cell by cell: applies Rule 9/10, T-1, T-7, and block obstruction (T-3). Returns a destination or the reason it is illegal. |
 | `MoveGenerator` | Builds every legal `Move` for a player and roll, including block moves (T-4) and partial moves (A-16). |
 | `Move` | A command object describing one legal move, which can execute itself. |
-| `LandingResolver` | What happens when something lands on a cell: captures (Rule 6, T-2, T-8), block formation, obstruction. Shared by normal moves and teleports so the logic isn't duplicated. |
+| `LandingResolver` | What happens when something lands on a cell: captures (Rule 6, T-2, T-8), block formation, obstruction. Shared by normal moves and teleports so the logic isn't duplicated. Implements `moves.LandingHandler`, so a `Move` can trigger landing resolution without the `moves` package depending on `rules` (dependency inversion). |
 | `MysteryResolver` | Mystery cell trigger: picks an outcome, teleports, applies Alpha/Beta/Gamma effects (T-11 to T-15). |
 | `PlayerStrategy` | Selects one move from the legal list. |
 | `TurnController` | One player's turn: roll loop, six streak, T-6, bonus rolls (A-23), Beta three-3s streak (A-33). |
@@ -124,19 +124,24 @@ Opposing pieces can never share a track cell (landing captures or is illegal), s
 ### 3.5 Piece — mutable entity, encapsulated
 
 ```
-class Piece
-  id: PieceId                  // immutable (colour, number)
-  position: Position
-  originalDirection: Direction // coin toss result, or Gamma change (A-34)
-  captureCount: int            // T-7
-  ccwApproachCrossings: int    // T-1 / A-08
-  effect: PieceEffect          // NoEffect by default (Null Object)
+class Piece                    // lives in `board`, not `domain` (2.2)
+  id: PieceId                  // immutable (colour, number)         — public getter
+  position: Position                                                 — public getter
+  originalDirection: Direction // coin toss result, or Gamma change (A-34) — public getter
+  captureCount: int            // T-7                                — public getter
+  ccwApproachCrossings: int    // T-1 / A-08                         — public getter
+  effect: PieceEffect          // NoEffect by default (Null Object)   — public getter
 
-  resetToBase()                // T-9 / A-26: resets every field above
+  moveTo(position)                          // package-private
+  recordCapture()                           // package-private
+  assignDirection(direction)                // package-private
+  recordApproachCrossing()                  // package-private
+  applyEffect(effect)                       // package-private
+  resetToBase()                             // package-private, T-9 / A-26: resets every field above
 ```
-All mutation goes through intention-revealing methods (`recordCapture()`, `moveTo()`, `resetToBase()`), never through raw setters.
+All mutation goes through intention-revealing methods (`recordCapture()`, `moveTo()`, `resetToBase()`), never through raw setters — and every one of them is package-private. `BoardState` is the only class in `board` that constructs and mutates a `Piece`, so it exposes matching public methods (`moveTo`, `resetToBase`, `recordCapture`, `assignDirection`, `recordApproachCrossing`, `applyEffect`) that wrap these calls and, for `moveTo`/`resetToBase`, keep its track/home-straight occupancy lists in sync in the same operation. Code outside `board` can only read a piece through its public getters.
 
-**Why:** a piece has identity and state that changes over time, so it is an entity. Keeping `resetToBase()` as a single method guarantees T-9 resets *everything*, and adding a field later can't accidentally leave it out of the reset.
+**Why:** a piece has identity and state that changes over time, so it is an entity. Keeping `resetToBase()` as a single method guarantees T-9 resets *everything*, and adding a field later can't accidentally leave it out of the reset. Making every mutator package-private turns "occupancy must stay in sync with piece position" from a convention into something the compiler enforces: a piece obtained from `BoardState.piece(id)` cannot be moved or reset except through `BoardState` itself, so the "ghost occupancy" bug described in 3.4 for blocks cannot happen for pieces either.
 
 ### 3.6 Registry of all pieces
 
@@ -401,6 +406,10 @@ classDiagram
     class LandingResolver {
         +resolve(movers, cell) LandingResult
     }
+    class LandingHandler {
+        <<interface>>
+        +resolveLanding(moverId, destination, board, events) LandingResult
+    }
     class MysteryResolver {
         +trigger(piece)
     }
@@ -429,8 +438,14 @@ classDiagram
         -originalDirection: Direction
         -captureCount: int
         -ccwApproachCrossings: int
-        +resetToBase()
+        ~moveTo(position)
+        ~recordCapture()
+        ~assignDirection(direction)
+        ~recordApproachCrossing()
+        ~applyEffect(effect)
+        ~resetToBase()
     }
+    note for Piece "lives in ludot.board; mutators are package-private,\nonly callable from BoardState"
     class PieceEffect {
         <<interface>>
         +adjustSteps(roll) int
@@ -460,7 +475,8 @@ classDiagram
     MoveGenerator --> MovementCalculator
     MovementCalculator --> BoardTopology
     MovementCalculator --> BoardState
-    Move ..> LandingResolver
+    Move ..> LandingHandler
+    LandingResolver ..|> LandingHandler
     Move ..> MysteryResolver
     MysteryResolver --> MysteryOutcome
     MysteryResolver --> RandomPicker

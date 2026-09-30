@@ -104,7 +104,7 @@ A command-line simulation of LUDO-T (Ludo with extended rules). It runs with no 
 
 ### Testing
 **Mockito rules**
-- **Mock roles, not values.** Mock only interfaces at the boundaries of the unit under test: `Dice`, `Coin`, `RandomPicker`, `PlayerStrategy`, `GameEventListener`, and `GameView` (for strategy tests).
+- **Mock roles, not values.** Mock only interfaces at the boundaries of the unit under test: `Dice`, `Coin`, `RandomPicker`, `PlayerStrategy`, `GameEventListener`, `GameView` (for strategy tests), and `LandingHandler` (for `Move` tests).
 - **Never mock** records, enums, `Piece`, `BoardState`, `BoardTopology` or `MysteryCell`. Build real instances with small test helpers. Mocking them would hide real rule bugs.
 - Use `@ExtendWith(MockitoExtension.class)` with the default strict stubs, so unused stubs fail the test.
 - Stub random sequences with consecutive returns, e.g. `when(dice.roll()).thenReturn(6, 6, 6)` for T-6, `when(coin.toss()).thenReturn(Direction.COUNTERCLOCKWISE)` for T-1.
