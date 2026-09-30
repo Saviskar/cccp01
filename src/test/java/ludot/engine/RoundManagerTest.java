@@ -56,8 +56,11 @@ class RoundManagerTest {
         events.subscribe(listener);
         standings = new Standings();
         BoardTopology topology = new BoardTopology();
+        // Plumbing only: neither RoundManagerTest scenario ever rolls a six, so a lambda avoids
+        // an unused Mockito stub tripping strict-stubs.
         TurnController turnController = new TurnController(
-                dice, new MoveGenerator(new MovementCalculator()), topology, events, new LandingResolver());
+                dice, () -> Direction.CLOCKWISE, new MoveGenerator(new MovementCalculator()), topology, events,
+                new LandingResolver());
         roundManager = new RoundManager(turnController, events);
     }
 

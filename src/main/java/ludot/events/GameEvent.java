@@ -8,6 +8,7 @@ public sealed interface GameEvent permits
         RoundOrderAnnounced,
         DiceRolled,
         PieceEnteredX,
+        PieceDirectionAssigned,
         PieceMoved,
         PieceCaptured,
         PieceCountStatus,

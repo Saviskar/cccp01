@@ -13,7 +13,8 @@ public record StepMove(
         Position destination,
         int rollValue,
         Direction direction,
-        boolean capturesSomething) implements Move {
+        boolean capturesSomething,
+        boolean crossesApproachWithoutEntering) implements Move {
 
     @Override
     public boolean formsBlock() {
@@ -29,6 +30,9 @@ public record StepMove(
     public MoveResult execute(MoveContext context) {
         BoardState board = context.board();
         board.moveTo(pieceId, destination);
+        if (crossesApproachWithoutEntering) {
+            board.recordApproachCrossing(pieceId); // A-08
+        }
         context.events().publish(new PieceMoved(pieceId, origin, destination, rollValue, direction));
 
         if (!capturesSomething) {

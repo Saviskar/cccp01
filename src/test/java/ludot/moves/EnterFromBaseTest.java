@@ -8,7 +8,9 @@ import ludot.domain.PieceId;
 import ludot.domain.Position;
 import ludot.events.EventBus;
 import ludot.events.GameEventListener;
+import ludot.events.PieceDirectionAssigned;
 import ludot.events.PieceEnteredX;
+import ludot.random.Coin;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,6 +40,9 @@ class EnterFromBaseTest {
     @Mock
     private LandingHandler landingHandler;
 
+    @Mock
+    private Coin coin;
+
     private BoardState board;
     private EventBus events;
 
@@ -53,21 +58,47 @@ class EnterFromBaseTest {
     void rule2_movesPieceFromBaseToX() {
         PieceId id = new PieceId(Colour.RED, 1);
         Move move = new EnterFromBase(id, new OnTrack(RED_X), false);
+        when(coin.toss()).thenReturn(Direction.CLOCKWISE);
 
-        move.execute(new MoveContext(board, events, landingHandler));
+        move.execute(new MoveContext(board, events, landingHandler, coin));
 
         assertEquals(new OnTrack(RED_X), board.piece(id).position());
     }
 
     @Test
-    @DisplayName("Rule 8: movement from base to X is in the clockwise direction")
-    void rule8_baseToXMovementIsClockwise() {
+    @DisplayName("Rule 8/A-12: heads assigns the clockwise direction")
+    void rule8_a12_headsAssignsClockwise() {
         PieceId id = new PieceId(Colour.RED, 1);
         Move move = new EnterFromBase(id, new OnTrack(RED_X), false);
+        when(coin.toss()).thenReturn(Direction.CLOCKWISE);
 
-        move.execute(new MoveContext(board, events, landingHandler));
+        move.execute(new MoveContext(board, events, landingHandler, coin));
 
         assertEquals(Optional.of(Direction.CLOCKWISE), board.piece(id).originalDirection());
+    }
+
+    @Test
+    @DisplayName("A-12: tails assigns the counterclockwise direction")
+    void a12_tailsAssignsCounterclockwise() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        Move move = new EnterFromBase(id, new OnTrack(RED_X), false);
+        when(coin.toss()).thenReturn(Direction.COUNTERCLOCKWISE);
+
+        move.execute(new MoveContext(board, events, landingHandler, coin));
+
+        assertEquals(Optional.of(Direction.COUNTERCLOCKWISE), board.piece(id).originalDirection());
+    }
+
+    @Test
+    @DisplayName("A-12: the coin is tossed exactly once")
+    void a12_tossesCoinExactlyOnce() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        Move move = new EnterFromBase(id, new OnTrack(RED_X), false);
+        when(coin.toss()).thenReturn(Direction.CLOCKWISE);
+
+        move.execute(new MoveContext(board, events, landingHandler, coin));
+
+        verify(coin).toss();
     }
 
     @Test
@@ -75,8 +106,9 @@ class EnterFromBaseTest {
     void publishesPieceEnteredXWithUpdatedCounts() {
         PieceId id = new PieceId(Colour.RED, 1);
         Move move = new EnterFromBase(id, new OnTrack(RED_X), false);
+        when(coin.toss()).thenReturn(Direction.CLOCKWISE);
 
-        move.execute(new MoveContext(board, events, landingHandler));
+        move.execute(new MoveContext(board, events, landingHandler, coin));
 
         ArgumentCaptor<PieceEnteredX> captor = ArgumentCaptor.forClass(PieceEnteredX.class);
         verify(listener).onEvent(captor.capture());
@@ -86,12 +118,30 @@ class EnterFromBaseTest {
     }
 
     @Test
+    @DisplayName("A-12: publishes PieceDirectionAssigned after PieceEnteredX")
+    void a12_publishesPieceDirectionAssignedAfterPieceEnteredX() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        Move move = new EnterFromBase(id, new OnTrack(RED_X), false);
+        when(coin.toss()).thenReturn(Direction.COUNTERCLOCKWISE);
+
+        move.execute(new MoveContext(board, events, landingHandler, coin));
+
+        ArgumentCaptor<PieceDirectionAssigned> captor = ArgumentCaptor.forClass(PieceDirectionAssigned.class);
+        InOrder order = inOrder(listener);
+        order.verify(listener).onEvent(any(PieceEnteredX.class));
+        order.verify(listener).onEvent(captor.capture());
+        assertEquals(id, captor.getValue().pieceId());
+        assertEquals(Direction.COUNTERCLOCKWISE, captor.getValue().direction());
+    }
+
+    @Test
     @DisplayName("a non-capturing entry never calls the landing handler")
     void nonCapturingEntryDoesNotCallLandingHandler() {
         PieceId id = new PieceId(Colour.RED, 1);
         Move move = new EnterFromBase(id, new OnTrack(RED_X), false);
+        when(coin.toss()).thenReturn(Direction.CLOCKWISE);
 
-        move.execute(new MoveContext(board, events, landingHandler));
+        move.execute(new MoveContext(board, events, landingHandler, coin));
 
         verifyNoInteractions(landingHandler);
     }
@@ -103,9 +153,10 @@ class EnterFromBaseTest {
         Position destination = new OnTrack(RED_X);
         when(landingHandler.resolveLanding(id, destination, board, events))
                 .thenReturn(new LandingResult(true, Optional.of(new PieceId(Colour.GREEN, 1))));
+        when(coin.toss()).thenReturn(Direction.CLOCKWISE);
         Move move = new EnterFromBase(id, destination, true);
 
-        MoveResult result = move.execute(new MoveContext(board, events, landingHandler));
+        MoveResult result = move.execute(new MoveContext(board, events, landingHandler, coin));
 
         assertEquals(new MoveResult(true), result);
         InOrder order = inOrder(listener, landingHandler);

@@ -3,6 +3,7 @@ package ludot.engine;
 import ludot.board.BoardState;
 import ludot.board.BoardTopology;
 import ludot.domain.Colour;
+import ludot.domain.Direction;
 import ludot.events.EventBus;
 import ludot.events.GameEnded;
 import ludot.events.GameEvent;
@@ -51,8 +52,11 @@ class GameEngineTest {
         BoardTopology topology = new BoardTopology();
         EventBus events = new EventBus();
         events.subscribe(listener);
+        // Plumbing only: no GameEngineTest scenario reaches EnterFromBase (all trailing roll
+        // values are non-six), so a lambda avoids an unused Mockito stub tripping strict-stubs.
         TurnController turnController = new TurnController(
-                dice, new MoveGenerator(new MovementCalculator()), topology, events, new LandingResolver());
+                dice, () -> Direction.CLOCKWISE, new MoveGenerator(new MovementCalculator()), topology, events,
+                new LandingResolver());
         RoundManager roundManager = new RoundManager(turnController, events);
         Map<Colour, PlayerStrategy> strategies = new EnumMap<>(Colour.class);
         for (Colour colour : Colour.values()) {

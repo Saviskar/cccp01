@@ -57,7 +57,11 @@ class TurnControllerTest {
         events.subscribe(listener);
         standings = new Standings();
         MoveGenerator moveGenerator = new MoveGenerator(new MovementCalculator());
-        controller = new TurnController(dice, moveGenerator, topology, events, new LandingResolver());
+        // Plumbing only: none of these tests reach EnterFromBase on every roll sequence, so a
+        // Mockito mock here would trip strict-stubs' UnnecessaryStubbingException; a lambda is
+        // always "used" correctly whether or not a base entry occurs.
+        controller = new TurnController(
+                dice, () -> Direction.CLOCKWISE, moveGenerator, topology, events, new LandingResolver());
         player = new Player(Colour.RED, new FirstLegalMoveStrategy());
     }
 
