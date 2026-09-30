@@ -18,6 +18,12 @@ class BoardTopologyTest {
     }
 
     @Test
+    @DisplayName("A-05: each home straight has 5 cells")
+    void a05_homeStraightLengthIs5() {
+        assertEquals(5, BoardTopology.HOME_STRAIGHT_LENGTH);
+    }
+
+    @Test
     @DisplayName("A-02: Yellow X = 0, Approach = 50")
     void a02_yellowXAndApproach() {
         assertEquals(0, topology.xIndex(Colour.YELLOW));

@@ -65,8 +65,8 @@ and the spec rule / assumption ID / DESIGN.md section it violates.
    - Every rule and assumption in scope has at least one JUnit test that names its ID.
    - Rule tests stub Dice / Coin / RandomPicker with Mockito, not seeded randomness.
    - Mockito is only used on boundary interfaces (Dice, Coin, RandomPicker,
-     PlayerStrategy, GameEventListener, GameView). Any mock of a record, enum,
-     Piece, BoardState, BoardTopology or MysteryCell is a MEDIUM finding.
+     PlayerStrategy, GameEventListener, GameView, LandingHandler). Any mock of a
+     record, enum, Piece, BoardState, BoardTopology or MysteryCell is a MEDIUM finding.
    - Tests use MockitoExtension with strict stubs; no unused stubs, no
      verify() on incidental calls.
    - Edge cases covered (e.g. adjacent block, floor division to 0, exact-roll overshoot,
