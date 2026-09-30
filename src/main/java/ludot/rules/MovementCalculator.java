@@ -17,36 +17,63 @@ import ludot.domain.Position;
  */
 public final class MovementCalculator {
 
-    public RouteResult walk(Position from, int steps, Colour colour, Direction direction, BoardTopology topology) {
+    // A-08: a counterclockwise piece may enter the home straight once it has crossed
+    // its Approach this many times without entering (i.e. from the second crossing onward).
+    private static final int CROSSINGS_REQUIRED_FOR_HOME_STRAIGHT = 1;
+
+    /**
+     * @param ccwApproachCrossings the piece's crossing count (A-08) entering this move; irrelevant
+     *                             for {@link Direction#CLOCKWISE}, which has no eligibility gate.
+     */
+    public RouteResult walk(
+            Position from, int steps, Colour colour, Direction direction, int ccwApproachCrossings,
+            BoardTopology topology) {
         Position current = from;
+        int crossings = ccwApproachCrossings;
+        boolean crossedDuringWalk = false;
         for (int i = 0; i < steps; i++) {
             if (current instanceof AtHome) {
                 // Rule 10/A-09: already home before the roll is used up — no bounce-back.
                 return new RouteResult.Overshoot();
             }
-            current = stepOnce(current, colour, direction, topology);
+            StepOutcome outcome = stepOnce(current, colour, direction, crossings, topology);
+            current = outcome.position();
+            if (outcome.crossedApproachWithoutEntering()) {
+                crossings++;
+                crossedDuringWalk = true;
+            }
         }
-        return new RouteResult.Reachable(current);
+        return new RouteResult.Reachable(current, crossedDuringWalk);
     }
 
-    private Position stepOnce(Position current, Colour colour, Direction direction, BoardTopology topology) {
-        if (direction == Direction.COUNTERCLOCKWISE) {
-            // T-1 (phase 4a) adds real counterclockwise walking, including extra laps
-            // before a piece is allowed into the home straight (A-08).
-            throw new UnsupportedOperationException("Counterclockwise walking is added in phase 4a");
-        }
+    private StepOutcome stepOnce(
+            Position current, Colour colour, Direction direction, int ccwApproachCrossings, BoardTopology topology) {
         return switch (current) {
-            case OnTrack(int index) -> index == topology.approachIndex(colour)
-                    // Rule 9: passing the Approach cell enters the home straight. Traditional
-                    // Ludo has no eligibility gate here (unlike T-7, phase 4f).
-                    ? new InHomeStraight(0)
-                    : new OnTrack(topology.step(index, direction));
-            case InHomeStraight(int cell) -> cell == BoardTopology.HOME_STRAIGHT_LENGTH - 1
+            case OnTrack(int index) -> stepOnTrack(index, colour, direction, ccwApproachCrossings, topology);
+            case InHomeStraight(int cell) -> new StepOutcome(cell == BoardTopology.HOME_STRAIGHT_LENGTH - 1
                     ? new AtHome()
-                    : new InHomeStraight(cell + 1);
+                    : new InHomeStraight(cell + 1), false);
             case AtHome ignored -> throw new IllegalStateException("Cannot step further once at Home");
             case InBase ignored -> throw new IllegalArgumentException(
                     "MovementCalculator does not walk from base; use EnterFromBase for Rule 2");
         };
+    }
+
+    private StepOutcome stepOnTrack(
+            int index, Colour colour, Direction direction, int ccwApproachCrossings, BoardTopology topology) {
+        if (index != topology.approachIndex(colour)) {
+            return new StepOutcome(new OnTrack(topology.step(index, direction)), false);
+        }
+        // Rule 9: clockwise always enters. A-08: counterclockwise only from its second
+        // crossing onward; the first crossing continues around the standard track instead.
+        boolean entersHomeStraight =
+                direction == Direction.CLOCKWISE || ccwApproachCrossings >= CROSSINGS_REQUIRED_FOR_HOME_STRAIGHT;
+        if (entersHomeStraight) {
+            return new StepOutcome(new InHomeStraight(0), false);
+        }
+        return new StepOutcome(new OnTrack(topology.step(index, direction)), true);
+    }
+
+    private record StepOutcome(Position position, boolean crossedApproachWithoutEntering) {
     }
 }

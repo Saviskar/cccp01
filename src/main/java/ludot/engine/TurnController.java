@@ -12,6 +12,7 @@ import ludot.events.ThirdSixIgnored;
 import ludot.moves.LandingHandler;
 import ludot.moves.Move;
 import ludot.moves.MoveContext;
+import ludot.random.Coin;
 import ludot.random.Dice;
 import ludot.rules.MoveGenerator;
 
@@ -30,14 +31,17 @@ public final class TurnController {
     private static final int PIECES_PER_COLOUR = 4;
 
     private final Dice dice;
+    private final Coin coin;
     private final MoveGenerator moveGenerator;
     private final BoardTopology topology;
     private final EventBus events;
     private final LandingHandler landingHandler;
 
     public TurnController(
-            Dice dice, MoveGenerator moveGenerator, BoardTopology topology, EventBus events, LandingHandler landingHandler) {
+            Dice dice, Coin coin, MoveGenerator moveGenerator, BoardTopology topology, EventBus events,
+            LandingHandler landingHandler) {
         this.dice = dice;
+        this.coin = coin;
         this.moveGenerator = moveGenerator;
         this.topology = topology;
         this.events = events;
@@ -80,7 +84,7 @@ public final class TurnController {
         if (!moves.contains(chosen)) {
             throw new IllegalStateException("Strategy chose a move outside the legal list: " + chosen);
         }
-        chosen.execute(new MoveContext(board, events, landingHandler));
+        chosen.execute(new MoveContext(board, events, landingHandler, coin));
 
         if (board.countAtHome(colour) != PIECES_PER_COLOUR) {
             return false;

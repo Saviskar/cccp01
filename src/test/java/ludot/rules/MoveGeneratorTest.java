@@ -11,6 +11,8 @@ import ludot.domain.PieceId;
 import ludot.events.EventBus;
 import ludot.moves.Move;
 import ludot.moves.MoveContext;
+import ludot.moves.StepMove;
+import ludot.random.Coin;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -162,7 +164,8 @@ class MoveGeneratorTest {
         assertEquals(new OnTrack(14), move.destination());
         assertFalse(move.capturesSomething());
 
-        move.execute(new MoveContext(board, new EventBus(), new LandingResolver()));
+        Coin unusedCoin = () -> Direction.CLOCKWISE;
+        move.execute(new MoveContext(board, new EventBus(), new LandingResolver(), unusedCoin));
 
         assertEquals(new OnTrack(14), board.piece(mover).position());
         assertEquals(new OnTrack(11), board.piece(opponentBetween).position());
@@ -178,5 +181,36 @@ class MoveGeneratorTest {
         List<Move> moves = generator.legalMoves(Colour.RED, 6, board, topology);
 
         assertTrue(moves.stream().noneMatch(m -> m.pieceId().equals(id)));
+    }
+
+    @Test
+    @DisplayName("A-08: a counterclockwise piece's first Approach crossing generates a crossing step move")
+    void a08_generatesCrossingStepMove() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        int approach = topology.approachIndex(Colour.RED);
+        board.moveTo(id, new OnTrack(approach));
+        board.assignDirection(id, Direction.COUNTERCLOCKWISE);
+
+        List<Move> moves = generator.legalMoves(Colour.RED, 1, board, topology);
+
+        StepMove move = (StepMove) moves.stream().filter(m -> m.pieceId().equals(id)).findFirst().orElseThrow();
+        assertEquals(new OnTrack(topology.step(approach, Direction.COUNTERCLOCKWISE)), move.destination());
+        assertTrue(move.crossesApproachWithoutEntering());
+    }
+
+    @Test
+    @DisplayName("A-08: a counterclockwise piece's second Approach crossing generates a home-straight entry")
+    void a08_generatesHomeStraightEntryOnSecondCrossing() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        int approach = topology.approachIndex(Colour.RED);
+        board.moveTo(id, new OnTrack(approach));
+        board.assignDirection(id, Direction.COUNTERCLOCKWISE);
+        board.recordApproachCrossing(id);
+
+        List<Move> moves = generator.legalMoves(Colour.RED, 1, board, topology);
+
+        StepMove move = (StepMove) moves.stream().filter(m -> m.pieceId().equals(id)).findFirst().orElseThrow();
+        assertEquals(new InHomeStraight(0), move.destination());
+        assertFalse(move.crossesApproachWithoutEntering());
     }
 }

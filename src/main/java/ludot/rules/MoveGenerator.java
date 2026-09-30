@@ -64,20 +64,24 @@ public final class MoveGenerator {
     private Optional<Move> stepMove(Piece piece, Colour colour, int roll, BoardState board, BoardTopology topology) {
         // A-12: a piece off base always has a direction; T-1 (phase 4a) is what lets it be counterclockwise.
         Direction direction = piece.originalDirection().orElseThrow();
-        RouteResult result = movementCalculator.walk(piece.position(), roll, colour, direction, topology);
+        RouteResult result = movementCalculator.walk(
+                piece.position(), roll, colour, direction, piece.ccwApproachCrossings(), topology);
         if (!(result instanceof RouteResult.Reachable reachable)) {
             return Optional.empty(); // Rule 10: overshoot is illegal.
         }
         Position destination = reachable.destination();
+        boolean crossesApproach = reachable.crossedApproachWithoutEntering(); // A-08
         if (destination instanceof OnTrack onTrack) {
             Optional<Colour> occupant = board.colourAt(onTrack.index());
             if (occupant.isPresent() && occupant.get() == colour) {
                 return Optional.empty(); // Rule 7: can't land on an own-colour piece.
             }
             boolean captures = occupant.isPresent();
-            return Optional.of(new StepMove(piece.id(), piece.position(), destination, roll, direction, captures));
+            return Optional.of(
+                    new StepMove(piece.id(), piece.position(), destination, roll, direction, captures, crossesApproach));
         }
         // A-10: home-straight cells allow own-colour sharing and never hold an opponent.
-        return Optional.of(new StepMove(piece.id(), piece.position(), destination, roll, direction, false));
+        return Optional.of(
+                new StepMove(piece.id(), piece.position(), destination, roll, direction, false, crossesApproach));
     }
 }

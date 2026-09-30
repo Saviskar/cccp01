@@ -41,7 +41,7 @@ Why this matters:
 |---|---|---|
 | `domain` | `Colour`, `Direction`, `PieceId`, `Position`, `PieceEffect` | — |
 | `board` | `BoardTopology`, `BoardState`, `MysteryCell`, `Piece`, `GameView` | `domain` |
-| `moves` | `Move` and its implementations, `LandingHandler` | `domain`, `board`, `events` |
+| `moves` | `Move` and its implementations, `LandingHandler` | `domain`, `board`, `events`, `random` |
 | `rules` | `MovementCalculator`, `MoveGenerator`, `LandingResolver`, `MysteryResolver`, `MysteryOutcome` implementations | `domain`, `board`, `moves`, `random`, `events` |
 | `players` | `PlayerStrategy`, four strategies | `domain`, `moves`, `board` |
 | `engine` | `GameEngine`, `TurnController`, `RoundManager`, `Standings` | all of the above |
@@ -311,7 +311,10 @@ TurnController.playTurn(player):
       breakBlocksIfAny(player)             // T-6 / A-22
       end turn
     moves = moveGenerator.legalMoves(player, roll)
-    if moves empty: publish(NoMove); end turn
+    if moves empty:
+      publish(NoMove)
+      if roll == 6: continue                // A-47: six always grants a bonus roll
+      end turn
     move = player.strategy.choose(moves, gameView)
     assert move in moves                   // LSP safeguard
     result = move.execute(context)         // captures, mystery via resolvers
@@ -472,10 +475,12 @@ classDiagram
     TurnController --> MoveGenerator
     TurnController --> PlayerStrategy
     TurnController --> Dice
+    TurnController --> Coin
     MoveGenerator --> MovementCalculator
     MovementCalculator --> BoardTopology
     MovementCalculator --> BoardState
     Move ..> LandingHandler
+    Move ..> Coin
     LandingResolver ..|> LandingHandler
     Move ..> MysteryResolver
     MysteryResolver --> MysteryOutcome
@@ -534,3 +539,18 @@ sequenceDiagram
         TC->>D: roll() again
     end
 ```
+
+---
+
+## 12. Change Log
+
+Structural changes to this document made after the initial design, each already authorized
+during the corresponding phase's planning. A change recorded here is not a violation of the
+"DESIGN.md is read-only" workflow rule.
+
+| Phase | Section | Change | Reason |
+|---|---|---|---|
+| 2 | 2.2, 2.3, 3.5, 11.1 | `Piece` moved into the `board` package with package-private mutators; `GameView` placed in `board` | Encapsulation: only `BoardState` can mutate a `Piece`, so occupancy can never fall out of sync with a piece's own position (3.5); `GameView` is `BoardState`'s read-only query surface for strategies |
+| 3 | 2.2, 2.3, 11.1 | `LandingHandler` added in `moves`, implemented by `LandingResolver` | Dependency inversion: a `Move` can trigger landing resolution without the `moves` package depending on `rules` |
+| 3 | 8.1 | The no-legal-moves branch continues the roll loop when the roll was a six, instead of unconditionally ending the turn | A-47: a six always grants a bonus roll, even when it produced no legal move |
+| 4a | 2.2, 11.1 | `moves` package depends on `random`; `Coin` added to `MoveContext` | T-1's coin toss happens inside `EnterFromBase.execute()`, once the piece reaches X, keeping `TurnController` free of per-move-type checks |

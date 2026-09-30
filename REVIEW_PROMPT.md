@@ -24,6 +24,8 @@ Context files (read all of them first, in this order):
 3. DESIGN.md           — binding architecture
 4. CLAUDE.md           — working rules
 
+Changes to DESIGN.md or ASSUMPTIONS.md recorded in DESIGN.md's Change Log (or as a numbered assumption) are authorized — do not flag them as unauthorized edits.
+
 Scope: phase <PHASE> as defined in the "Workflow" section of CLAUDE.md.
 Review only code belonging to this phase and anything it changed.
 
@@ -109,6 +111,8 @@ assignment for a distinction. Do NOT modify any files. Only read and report.
 
 Read docs/SPEC.md, ASSUMPTIONS.md, DESIGN.md and CLAUDE.md, then review the
 ENTIRE codebase and test suite.
+
+Changes to DESIGN.md or ASSUMPTIONS.md recorded in DESIGN.md's Change Log (or as a numbered assumption) are authorized — do not flag them as unauthorized edits.
 
 1. Run the full test suite and report the result.
 2. Run the simulation with three different seeds and check:
