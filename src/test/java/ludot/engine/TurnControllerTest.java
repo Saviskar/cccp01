@@ -6,6 +6,7 @@ import ludot.board.GameView;
 import ludot.domain.AtHome;
 import ludot.domain.Colour;
 import ludot.domain.Direction;
+import ludot.domain.InBase;
 import ludot.domain.InHomeStraight;
 import ludot.domain.OnTrack;
 import ludot.domain.PieceId;
@@ -178,17 +179,75 @@ class TurnControllerTest {
     }
 
     @Test
-    @DisplayName("a capturing move does not grant a bonus roll (T-2 isn't active until phase 4b)")
-    void captureDoesNotGrantBonusRoll() {
+    @DisplayName("A-23/T-2: a capture grants a bonus roll")
+    void a23_captureGrantsBonusRoll() {
         PieceId mover = new PieceId(Colour.RED, 1);
         PieceId opponent = new PieceId(Colour.GREEN, 1);
         board.moveTo(mover, new OnTrack(10));
         board.assignDirection(mover, Direction.CLOCKWISE);
         board.moveTo(opponent, new OnTrack(13));
-        when(dice.roll()).thenReturn(3); // lands exactly on the opponent, non-six
+        when(dice.roll()).thenReturn(3, 2); // lands exactly on the opponent, non-six, then a bonus roll
 
         controller.playTurn(player, board, standings, view());
 
-        verify(dice, times(1)).roll();
+        verify(dice, times(2)).roll();
+        assertEquals(new InBase(), board.piece(opponent).position());
+    }
+
+    @Test
+    @DisplayName("A-23: a six that also captures does not stack into two bonus rolls")
+    void a23_sixAndCaptureDoNotStack() {
+        // The other three Red pieces are already Home so a six can't also offer them
+        // an EnterFromBase move, which would let FirstLegalMoveStrategy pick that
+        // instead of the capturing move.
+        board.moveTo(new PieceId(Colour.RED, 2), new AtHome());
+        board.moveTo(new PieceId(Colour.RED, 3), new AtHome());
+        board.moveTo(new PieceId(Colour.RED, 4), new AtHome());
+        PieceId mover = new PieceId(Colour.RED, 1);
+        PieceId opponent = new PieceId(Colour.GREEN, 1);
+        board.moveTo(mover, new OnTrack(10));
+        board.assignDirection(mover, Direction.CLOCKWISE);
+        board.moveTo(opponent, new OnTrack(16));
+        when(dice.roll()).thenReturn(6, 3); // captures on the six, then a non-capturing, non-six bonus roll
+
+        controller.playTurn(player, board, standings, view());
+
+        verify(dice, times(2)).roll(); // not three: the six and the capture share one bonus roll
+        assertEquals(new InBase(), board.piece(opponent).position());
+    }
+
+    @Test
+    @DisplayName("a six that captures on entry from base grants exactly one bonus roll, not two "
+            + "(A-23 non-stacking via EnterFromBase; A-25 capture on X)")
+    void a23_a25_baseEntryCaptureOnSixGrantsOnlyOneBonus() {
+        // Entering from base always requires a six (Rule 2), so the capturing roll here is
+        // necessarily also a six. times(2) alone can't distinguish "the capture granted a bonus"
+        // from "the six granted a bonus" (A-47) — this test instead proves non-stacking: a
+        // captured base entry still yields exactly one bonus roll, not two.
+        PieceId opponent = new PieceId(Colour.GREEN, 1);
+        board.moveTo(opponent, new OnTrack(topology.xIndex(Colour.RED)));
+        when(dice.roll()).thenReturn(6, 2); // captures entering from base, then a non-six bonus roll
+
+        controller.playTurn(player, board, standings, view());
+
+        verify(dice, times(2)).roll();
+        assertEquals(new InBase(), board.piece(opponent).position());
+    }
+
+    @Test
+    @DisplayName("A-24: a bonus roll earned from a capture counts as a normal roll in the six streak")
+    void a24_captureBonusRollCountsAsNormalRollInSixStreak() {
+        PieceId mover = new PieceId(Colour.RED, 1);
+        PieceId opponent = new PieceId(Colour.GREEN, 1);
+        board.moveTo(mover, new OnTrack(10));
+        board.assignDirection(mover, Direction.CLOCKWISE);
+        board.moveTo(opponent, new OnTrack(13));
+        when(dice.roll()).thenReturn(3, 6, 6, 6); // capture bonus, then three consecutive sixes
+
+        controller.playTurn(player, board, standings, view());
+
+        verify(dice, times(4)).roll();
+        verify(listener).onEvent(any(ThirdSixIgnored.class));
+        assertEquals(new InBase(), board.piece(opponent).position());
     }
 }
