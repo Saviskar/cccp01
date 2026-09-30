@@ -2,6 +2,7 @@ package ludot.rules;
 
 import ludot.board.BoardState;
 import ludot.domain.Colour;
+import ludot.domain.Direction;
 import ludot.domain.InBase;
 import ludot.domain.OnTrack;
 import ludot.domain.PieceId;
@@ -87,5 +88,23 @@ class LandingResolverTest {
         assertEquals(Colour.GREEN, statusCaptor.getValue().colour());
         assertEquals(0, statusCaptor.getValue().onBoard());
         assertEquals(4, statusCaptor.getValue().inBase());
+    }
+
+    @Test
+    @DisplayName("T-9/A-26: a captured piece loses all of its accumulated state")
+    void t9_capturedPieceLosesAllState() {
+        PieceId capturer = new PieceId(Colour.RED, 1);
+        PieceId captured = new PieceId(Colour.GREEN, 1);
+        board.moveTo(captured, new OnTrack(5));
+        board.assignDirection(captured, Direction.COUNTERCLOCKWISE);
+        board.recordCapture(captured);
+        board.recordApproachCrossing(captured);
+
+        resolver.resolveLanding(capturer, new OnTrack(5), board, events);
+
+        assertEquals(new InBase(), board.piece(captured).position());
+        assertEquals(Optional.empty(), board.piece(captured).originalDirection());
+        assertEquals(0, board.piece(captured).captureCount());
+        assertEquals(0, board.piece(captured).ccwApproachCrossings());
     }
 }
