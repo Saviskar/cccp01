@@ -9,8 +9,10 @@ import ludot.domain.InHomeStraight;
 import ludot.domain.OnTrack;
 import ludot.domain.PieceId;
 import ludot.events.EventBus;
+import ludot.events.PieceBlocked;
 import ludot.moves.Move;
 import ludot.moves.MoveContext;
+import ludot.moves.PartialMove;
 import ludot.moves.StepMove;
 import ludot.random.Coin;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +23,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MoveGeneratorTest {
@@ -34,11 +37,15 @@ class MoveGeneratorTest {
         board = new BoardState();
     }
 
+    private List<Move> legalMovesOnly(Colour colour, int roll) {
+        return generator.legalMoves(colour, roll, board, topology).legalMoves();
+    }
+
     @Test
     @DisplayName("Rule 2/3: with everything in base, only a six produces a legal move")
     void rule2_onlyASixLeavesBase() {
-        assertTrue(generator.legalMoves(Colour.RED, 5, board, topology).isEmpty());
-        assertEquals(4, generator.legalMoves(Colour.RED, 6, board, topology).size());
+        assertTrue(legalMovesOnly(Colour.RED, 5).isEmpty());
+        assertEquals(4, legalMovesOnly(Colour.RED, 6).size());
     }
 
     @Test
@@ -48,7 +55,7 @@ class MoveGeneratorTest {
         board.moveTo(id, new OnTrack(10));
         board.assignDirection(id, Direction.CLOCKWISE);
 
-        List<Move> moves = generator.legalMoves(Colour.RED, 4, board, topology);
+        List<Move> moves = legalMovesOnly(Colour.RED, 4);
 
         assertEquals(1, moves.size());
         Move move = moves.get(0);
@@ -57,23 +64,26 @@ class MoveGeneratorTest {
     }
 
     @Test
-    @DisplayName("Rule 7: landing on an own-colour standard-track cell is illegal")
-    void rule7_ownColourTrackLandingIsIllegal() {
+    @DisplayName("A-14: landing on an own-colour standard-track cell is legal and forms a block")
+    void a14_ownColourTrackLandingFormsBlock() {
         PieceId mover = new PieceId(Colour.RED, 1);
-        PieceId blocker = new PieceId(Colour.RED, 2);
+        PieceId resident = new PieceId(Colour.RED, 2);
         board.moveTo(mover, new OnTrack(10));
         board.assignDirection(mover, Direction.CLOCKWISE);
-        board.moveTo(blocker, new OnTrack(14));
-        board.assignDirection(blocker, Direction.CLOCKWISE);
+        board.moveTo(resident, new OnTrack(14));
+        board.assignDirection(resident, Direction.CLOCKWISE);
 
-        List<Move> moves = generator.legalMoves(Colour.RED, 4, board, topology);
+        List<Move> moves = legalMovesOnly(Colour.RED, 4);
 
-        assertTrue(moves.stream().noneMatch(m -> m.pieceId().equals(mover)));
+        Move move = moves.stream().filter(m -> m.pieceId().equals(mover)).findFirst().orElseThrow();
+        assertEquals(new OnTrack(14), move.destination());
+        assertTrue(move.formsBlock());
+        assertFalse(move.capturesSomething());
     }
 
     @Test
-    @DisplayName("A-10: own-colour sharing in the home straight is legal, unlike on the track")
-    void a10_ownColourHomeStraightLandingIsLegal() {
+    @DisplayName("A-10: own-colour sharing in the home straight is legal and never forms a block")
+    void a10_homeStraightSharingNeverFormsBlock() {
         PieceId mover = new PieceId(Colour.RED, 1);
         PieceId sibling = new PieceId(Colour.RED, 2);
         board.moveTo(mover, new InHomeStraight(1));
@@ -81,10 +91,11 @@ class MoveGeneratorTest {
         board.moveTo(sibling, new InHomeStraight(2));
         board.assignDirection(sibling, Direction.CLOCKWISE);
 
-        List<Move> moves = generator.legalMoves(Colour.RED, 1, board, topology);
+        List<Move> moves = legalMovesOnly(Colour.RED, 1);
 
-        assertTrue(moves.stream().anyMatch(m -> m.pieceId().equals(mover)
-                && m.destination().equals(new InHomeStraight(2))));
+        Move move = moves.stream().filter(m -> m.pieceId().equals(mover)).findFirst().orElseThrow();
+        assertEquals(new InHomeStraight(2), move.destination());
+        assertFalse(move.formsBlock());
     }
 
     @Test
@@ -94,7 +105,7 @@ class MoveGeneratorTest {
         board.moveTo(id, new InHomeStraight(3));
         board.assignDirection(id, Direction.CLOCKWISE);
 
-        List<Move> moves = generator.legalMoves(Colour.RED, 3, board, topology);
+        List<Move> moves = legalMovesOnly(Colour.RED, 3);
 
         assertTrue(moves.isEmpty());
     }
@@ -108,7 +119,7 @@ class MoveGeneratorTest {
         board.assignDirection(mover, Direction.CLOCKWISE);
         board.moveTo(opponent, new OnTrack(14));
 
-        List<Move> moves = generator.legalMoves(Colour.RED, 4, board, topology);
+        List<Move> moves = legalMovesOnly(Colour.RED, 4);
 
         assertEquals(1, moves.size());
         assertTrue(moves.get(0).capturesSomething());
@@ -120,30 +131,46 @@ class MoveGeneratorTest {
         PieceId opponent = new PieceId(Colour.GREEN, 1);
         board.moveTo(opponent, new OnTrack(topology.xIndex(Colour.RED)));
 
-        List<Move> moves = generator.legalMoves(Colour.RED, 6, board, topology);
+        List<Move> moves = legalMovesOnly(Colour.RED, 6);
 
         assertEquals(4, moves.size());
         assertTrue(moves.stream().allMatch(Move::capturesSomething));
     }
 
     @Test
-    @DisplayName("Rule 7: entering base to X onto an own-colour piece is illegal for every base piece; "
+    @DisplayName("A-25: entering base to X onto an own-colour piece is legal and forms a block; "
             + "the resident on X may still step forward")
-    void rule7_enteringXOntoOwnColourIsIllegal() {
+    void a25_enteringXOntoOwnColourFormsBlock() {
         PieceId onX = new PieceId(Colour.RED, 1);
         board.moveTo(onX, new OnTrack(topology.xIndex(Colour.RED)));
         board.assignDirection(onX, Direction.CLOCKWISE);
 
-        List<Move> moves = generator.legalMoves(Colour.RED, 6, board, topology);
+        List<Move> moves = legalMovesOnly(Colour.RED, 6);
 
-        assertEquals(1, moves.size());
-        assertEquals(onX, moves.get(0).pieceId());
+        assertEquals(4, moves.size());
+        List<Move> baseEntries = moves.stream().filter(m -> !m.pieceId().equals(onX)).toList();
+        assertEquals(3, baseEntries.size());
+        assertTrue(baseEntries.stream().allMatch(Move::formsBlock));
+        assertTrue(baseEntries.stream().noneMatch(Move::capturesSomething));
+    }
+
+    @Test
+    @DisplayName("A-25: an opponent block on X makes base entry illegal")
+    void a25_enteringXOntoOpponentBlockIsIllegal() {
+        int redX = topology.xIndex(Colour.RED);
+        board.moveTo(new PieceId(Colour.GREEN, 1), new OnTrack(redX));
+        board.moveTo(new PieceId(Colour.GREEN, 2), new OnTrack(redX));
+
+        MoveGenerationResult result = generator.legalMoves(Colour.RED, 6, board, topology);
+
+        assertTrue(result.legalMoves().isEmpty());
+        assertTrue(result.deadEndObstructions().isEmpty());
     }
 
     @Test
     @DisplayName("nothing on the board and no six rolled produces no legal moves")
     void nothingOnBoardAndNoSixProducesNoMoves() {
-        assertTrue(generator.legalMoves(Colour.RED, 3, board, topology).isEmpty());
+        assertTrue(legalMovesOnly(Colour.RED, 3).isEmpty());
     }
 
     @Test
@@ -158,7 +185,7 @@ class MoveGeneratorTest {
         board.moveTo(ownBetween, new OnTrack(13));
         board.assignDirection(ownBetween, Direction.CLOCKWISE);
 
-        List<Move> moves = generator.legalMoves(Colour.RED, 4, board, topology);
+        List<Move> moves = legalMovesOnly(Colour.RED, 4);
 
         Move move = moves.stream().filter(m -> m.pieceId().equals(mover)).findFirst().orElseThrow();
         assertEquals(new OnTrack(14), move.destination());
@@ -178,7 +205,7 @@ class MoveGeneratorTest {
         PieceId id = new PieceId(Colour.RED, 1);
         board.moveTo(id, new AtHome());
 
-        List<Move> moves = generator.legalMoves(Colour.RED, 6, board, topology);
+        List<Move> moves = legalMovesOnly(Colour.RED, 6);
 
         assertTrue(moves.stream().noneMatch(m -> m.pieceId().equals(id)));
     }
@@ -191,7 +218,7 @@ class MoveGeneratorTest {
         board.moveTo(id, new OnTrack(approach));
         board.assignDirection(id, Direction.COUNTERCLOCKWISE);
 
-        List<Move> moves = generator.legalMoves(Colour.RED, 1, board, topology);
+        List<Move> moves = legalMovesOnly(Colour.RED, 1);
 
         StepMove move = (StepMove) moves.stream().filter(m -> m.pieceId().equals(id)).findFirst().orElseThrow();
         assertEquals(new OnTrack(topology.step(approach, Direction.COUNTERCLOCKWISE)), move.destination());
@@ -207,10 +234,152 @@ class MoveGeneratorTest {
         board.assignDirection(id, Direction.COUNTERCLOCKWISE);
         board.recordApproachCrossing(id);
 
-        List<Move> moves = generator.legalMoves(Colour.RED, 1, board, topology);
+        List<Move> moves = legalMovesOnly(Colour.RED, 1);
 
         StepMove move = (StepMove) moves.stream().filter(m -> m.pieceId().equals(id)).findFirst().orElseThrow();
         assertEquals(new InHomeStraight(0), move.destination());
         assertFalse(move.crossesApproachWithoutEntering());
+    }
+
+    @Test
+    @DisplayName("A-16: an obstructed piece with no other legal full move gets a partial move")
+    void a16_obstructedPieceWithNoAlternativeGetsPartialMove() {
+        PieceId mover = new PieceId(Colour.GREEN, 1);
+        PieceId blocker1 = new PieceId(Colour.RED, 1);
+        PieceId blocker2 = new PieceId(Colour.RED, 2);
+        board.moveTo(new PieceId(Colour.GREEN, 2), new AtHome());
+        board.moveTo(new PieceId(Colour.GREEN, 3), new AtHome());
+        board.moveTo(new PieceId(Colour.GREEN, 4), new AtHome());
+        board.moveTo(mover, new OnTrack(0));
+        board.assignDirection(mover, Direction.CLOCKWISE);
+        board.moveTo(blocker1, new OnTrack(4));
+        board.moveTo(blocker2, new OnTrack(4));
+
+        MoveGenerationResult result = generator.legalMoves(Colour.GREEN, 6, board, topology);
+
+        assertEquals(1, result.legalMoves().size());
+        assertTrue(result.deadEndObstructions().isEmpty());
+        PartialMove move = assertInstanceOf(PartialMove.class, result.legalMoves().get(0));
+        assertEquals(mover, move.pieceId());
+        assertEquals(new OnTrack(3), move.destination());
+        assertEquals(3, move.cellsMoved());
+        assertEquals(new OnTrack(6), move.intendedDestination());
+        assertEquals(blocker1, move.blockingPieceId());
+        assertFalse(move.capturesSomething());
+        assertFalse(move.formsBlock());
+    }
+
+    @Test
+    @DisplayName("A-14/A-16: a partial move landing on an own-colour piece forms a block")
+    void a14_partialMoveLandingOnOwnColourFormsBlock() {
+        PieceId mover = new PieceId(Colour.GREEN, 1);
+        PieceId resident = new PieceId(Colour.GREEN, 4);
+        board.moveTo(new PieceId(Colour.GREEN, 2), new AtHome());
+        board.moveTo(new PieceId(Colour.GREEN, 3), new AtHome());
+        board.moveTo(mover, new OnTrack(0));
+        board.assignDirection(mover, Direction.CLOCKWISE);
+        board.moveTo(resident, new OnTrack(3));
+        board.assignDirection(resident, Direction.CLOCKWISE);
+        board.moveTo(new PieceId(Colour.RED, 1), new OnTrack(4));
+        board.moveTo(new PieceId(Colour.RED, 2), new OnTrack(4));
+
+        MoveGenerationResult result = generator.legalMoves(Colour.GREEN, 6, board, topology);
+
+        assertEquals(1, result.legalMoves().size());
+        PartialMove move = assertInstanceOf(PartialMove.class, result.legalMoves().get(0));
+        assertEquals(mover, move.pieceId());
+        assertEquals(new OnTrack(3), move.destination());
+        assertTrue(move.formsBlock());
+        assertFalse(move.capturesSomething());
+    }
+
+    @Test
+    @DisplayName("A-16: an obstructed piece with another legal full move elsewhere gets no move at all")
+    void a16_obstructedPieceWithAlternativeGetsNoMove() {
+        PieceId obstructed = new PieceId(Colour.GREEN, 1);
+        PieceId free = new PieceId(Colour.GREEN, 2);
+        board.moveTo(new PieceId(Colour.GREEN, 3), new AtHome());
+        board.moveTo(new PieceId(Colour.GREEN, 4), new AtHome());
+        board.moveTo(obstructed, new OnTrack(0));
+        board.assignDirection(obstructed, Direction.CLOCKWISE);
+        board.moveTo(new PieceId(Colour.RED, 1), new OnTrack(4));
+        board.moveTo(new PieceId(Colour.RED, 2), new OnTrack(4));
+        board.moveTo(free, new OnTrack(20));
+        board.assignDirection(free, Direction.CLOCKWISE);
+
+        MoveGenerationResult result = generator.legalMoves(Colour.GREEN, 6, board, topology);
+
+        assertEquals(1, result.legalMoves().size());
+        assertEquals(free, result.legalMoves().get(0).pieceId());
+        assertTrue(result.deadEndObstructions().isEmpty());
+    }
+
+    @Test
+    @DisplayName("A-48: an adjacent block with no alternative produces a dead-end fact and no move")
+    void a48_adjacentBlockWithNoAlternativeProducesDeadEndFact() {
+        PieceId mover = new PieceId(Colour.GREEN, 1);
+        PieceId blocker1 = new PieceId(Colour.RED, 1);
+        PieceId blocker2 = new PieceId(Colour.RED, 2);
+        board.moveTo(new PieceId(Colour.GREEN, 2), new AtHome());
+        board.moveTo(new PieceId(Colour.GREEN, 3), new AtHome());
+        board.moveTo(new PieceId(Colour.GREEN, 4), new AtHome());
+        board.moveTo(mover, new OnTrack(10));
+        board.assignDirection(mover, Direction.CLOCKWISE);
+        board.moveTo(blocker1, new OnTrack(11));
+        board.moveTo(blocker2, new OnTrack(11));
+
+        MoveGenerationResult result = generator.legalMoves(Colour.GREEN, 4, board, topology);
+
+        assertTrue(result.legalMoves().isEmpty());
+        assertEquals(1, result.deadEndObstructions().size());
+        PieceBlocked blocked = result.deadEndObstructions().get(0);
+        assertEquals(mover, blocked.pieceId());
+        assertEquals(new OnTrack(10), blocked.from());
+        assertEquals(new OnTrack(14), blocked.intendedDestination());
+        assertEquals(blocker1, blocked.blockingPieceId());
+    }
+
+    @Test
+    @DisplayName("A-48: a mixed dead-end and partial-move result surfaces both in the generator's output")
+    void a48_mixedDeadEndAndPartialBothSurfaceInGeneratorResult() {
+        PieceId deadEndMover = new PieceId(Colour.GREEN, 1);
+        PieceId partialMover = new PieceId(Colour.GREEN, 2);
+        board.moveTo(new PieceId(Colour.GREEN, 3), new AtHome());
+        board.moveTo(new PieceId(Colour.GREEN, 4), new AtHome());
+        board.moveTo(deadEndMover, new OnTrack(20));
+        board.assignDirection(deadEndMover, Direction.CLOCKWISE);
+        board.moveTo(new PieceId(Colour.RED, 1), new OnTrack(21));
+        board.moveTo(new PieceId(Colour.RED, 2), new OnTrack(21));
+        board.moveTo(partialMover, new OnTrack(0));
+        board.assignDirection(partialMover, Direction.CLOCKWISE);
+        board.moveTo(new PieceId(Colour.RED, 3), new OnTrack(4));
+        board.moveTo(new PieceId(Colour.RED, 4), new OnTrack(4));
+
+        MoveGenerationResult result = generator.legalMoves(Colour.GREEN, 6, board, topology);
+
+        assertEquals(1, result.legalMoves().size());
+        assertEquals(partialMover, result.legalMoves().get(0).pieceId());
+        assertEquals(1, result.deadEndObstructions().size());
+        assertEquals(deadEndMover, result.deadEndObstructions().get(0).pieceId());
+    }
+
+    @Test
+    @DisplayName("a partial move landing on a single opponent still captures")
+    void partialMoveLandingOnSingleOpponentCaptures() {
+        PieceId mover = new PieceId(Colour.GREEN, 1);
+        board.moveTo(new PieceId(Colour.GREEN, 2), new AtHome());
+        board.moveTo(new PieceId(Colour.GREEN, 3), new AtHome());
+        board.moveTo(new PieceId(Colour.GREEN, 4), new AtHome());
+        board.moveTo(mover, new OnTrack(0));
+        board.assignDirection(mover, Direction.CLOCKWISE);
+        board.moveTo(new PieceId(Colour.RED, 1), new OnTrack(4));
+        board.moveTo(new PieceId(Colour.RED, 2), new OnTrack(4));
+        board.moveTo(new PieceId(Colour.BLUE, 1), new OnTrack(3));
+
+        MoveGenerationResult result = generator.legalMoves(Colour.GREEN, 6, board, topology);
+
+        assertEquals(1, result.legalMoves().size());
+        PartialMove move = assertInstanceOf(PartialMove.class, result.legalMoves().get(0));
+        assertTrue(move.capturesSomething());
     }
 }

@@ -75,6 +75,10 @@ Rationale: the brief's own numbering convention runs clockwise.
 
 **A-22 — T-6, three sixes with a block.** ⚠️ If a player owns at least one block and rolls three consecutive sixes, the third six is ignored (Rule 4) and **every** block that player owns must break. In each block, the member farthest from home stays (ties go to the lowest piece number). The remaining members share 6 units equally, each moving in its own original direction: 6 for a block of 2, 3 + 3 for a block of 3, 2 + 2 + 2 for a block of 4. Captures made during these moves count, but they grant no bonus roll because the turn has ended.
 
+**A-48 — Blocked messages.** Obstruction is only reported when it decides the turn (A-16). If a partial move is made, only that piece publishes the "is blocked from moving from L1 to L2" fact followed by the partial-move fact. If no legal move exists at all and at least one piece is obstructed, each obstructed piece publishes the "is blocked" fact, followed by a single "ignoring the throw" fact for the player — and no `NoLegalMove`. If no legal move exists and nothing is obstructed, only `NoLegalMove` is published. When any full move exists, obstruction is silent. L2 = where the full roll would have taken the piece; the blocking piece named is the lowest-numbered piece in the block.
+
+**A-49 — Overshoot beats obstruction.** If the full roll would overshoot Home (A-09), the move is illegal for that piece even if an opponent block would have stopped it earlier; no partial move is offered and no blocked message is published. Only reachable once Alpha's energised effect doubles a roll (A-32).
+
 ---
 
 ## 4. Captures and Turns
@@ -113,7 +117,7 @@ Rationale: the brief's own numbering convention runs clockwise.
 
 **A-46 — Move-then-capture message order.** A capturing move publishes the movement message first, then the capture message — never the capture message alone. A standard-path capture publishes the "moves piece from L1 to L2" message, then the capture message. A base-to-X capture publishes the "moved to the starting point" message, then the capture message. The player-count line that follows a capture message reports the captured colour's board/base counts, since the capturing player's own counts don't change.
 
-**A-47 — Six always grants a bonus roll.** Rule 4's second roll for a six is unconditional: a player who rolls a six gets a bonus roll even if that six produced no legal move (e.g. no piece could leave base, or the only piece on the board couldn't move).
+**A-47 — Six always grants a bonus roll.** Rule 4's second roll for a six is unconditional: a player who rolls a six gets a bonus roll even if that six produced no legal move (e.g. no piece could leave base, or the only piece on the board couldn't move). Exception: when the throw is ignored because of an obstruction (A-48), the turn ends and the dice passes to the next player, even on a six — as the spec's "Ignoring the throw and moving on to the next player" message and Rule 7 state.
 
 ---
 

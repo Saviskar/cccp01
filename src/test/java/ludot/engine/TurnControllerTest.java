@@ -13,8 +13,11 @@ import ludot.domain.PieceId;
 import ludot.events.EventBus;
 import ludot.events.GameEventListener;
 import ludot.events.NoLegalMove;
+import ludot.events.PieceBlocked;
+import ludot.events.PiecePartiallyMoved;
 import ludot.events.PlayerFinished;
 import ludot.events.ThirdSixIgnored;
+import ludot.events.ThrowIgnoredAfterBlock;
 import ludot.players.FirstLegalMoveStrategy;
 import ludot.random.Dice;
 import ludot.rules.LandingResolver;
@@ -25,11 +28,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -249,5 +255,68 @@ class TurnControllerTest {
         verify(dice, times(4)).roll();
         verify(listener).onEvent(any(ThirdSixIgnored.class));
         assertEquals(new InBase(), board.piece(opponent).position());
+    }
+
+    @Test
+    @DisplayName("A-48: a dead-end obstruction publishes PieceBlocked then ThrowIgnoredAfterBlock, never NoLegalMove")
+    void a48_deadEndObstructionPublishesBlockedThenIgnoringThrow() {
+        PieceId mover = new PieceId(Colour.RED, 1);
+        board.moveTo(mover, new OnTrack(10));
+        board.assignDirection(mover, Direction.CLOCKWISE);
+        board.moveTo(new PieceId(Colour.GREEN, 1), new OnTrack(11));
+        board.moveTo(new PieceId(Colour.GREEN, 2), new OnTrack(11));
+        when(dice.roll()).thenReturn(4);
+
+        controller.playTurn(player, board, standings, view());
+
+        verify(dice, times(1)).roll();
+        InOrder order = inOrder(listener);
+        order.verify(listener).onEvent(any(PieceBlocked.class));
+        order.verify(listener).onEvent(any(ThrowIgnoredAfterBlock.class));
+        verify(listener, never()).onEvent(any(NoLegalMove.class));
+    }
+
+    @Test
+    @DisplayName("A-47 exception: a six that produces only a dead-end obstruction ends the turn without a bonus roll")
+    void a47_sixWithDeadEndObstructionEndsTurnWithoutBonus() {
+        PieceId mover = new PieceId(Colour.RED, 1);
+        board.moveTo(mover, new OnTrack(10));
+        board.assignDirection(mover, Direction.CLOCKWISE);
+        board.moveTo(new PieceId(Colour.GREEN, 1), new OnTrack(11));
+        board.moveTo(new PieceId(Colour.GREEN, 2), new OnTrack(11));
+        board.moveTo(new PieceId(Colour.RED, 2), new AtHome());
+        board.moveTo(new PieceId(Colour.RED, 3), new AtHome());
+        board.moveTo(new PieceId(Colour.RED, 4), new AtHome());
+        when(dice.roll()).thenReturn(6);
+
+        controller.playTurn(player, board, standings, view());
+
+        verify(dice, times(1)).roll(); // A-47's exception: no bonus roll despite the six
+        verify(listener).onEvent(any(ThrowIgnoredAfterBlock.class));
+    }
+
+    @Test
+    @DisplayName("A-48: a mixed dead-end and partial-move turn reports only the executed partial mover")
+    void a48_mixedDeadEndAndPartialReportsOnlyExecutedMover() {
+        PieceId deadEndMover = new PieceId(Colour.RED, 1);
+        PieceId partialMover = new PieceId(Colour.RED, 2);
+        board.moveTo(deadEndMover, new OnTrack(20));
+        board.assignDirection(deadEndMover, Direction.CLOCKWISE);
+        board.moveTo(new PieceId(Colour.GREEN, 1), new OnTrack(21));
+        board.moveTo(new PieceId(Colour.GREEN, 2), new OnTrack(21));
+        board.moveTo(partialMover, new OnTrack(10));
+        board.assignDirection(partialMover, Direction.CLOCKWISE);
+        board.moveTo(new PieceId(Colour.GREEN, 3), new OnTrack(12));
+        board.moveTo(new PieceId(Colour.GREEN, 4), new OnTrack(12));
+        when(dice.roll()).thenReturn(4);
+
+        controller.playTurn(player, board, standings, view());
+
+        verify(dice, times(1)).roll();
+        verify(listener, never()).onEvent(any(ThrowIgnoredAfterBlock.class));
+        ArgumentCaptor<PieceBlocked> blockedCaptor = ArgumentCaptor.forClass(PieceBlocked.class);
+        verify(listener).onEvent(blockedCaptor.capture());
+        assertEquals(partialMover, blockedCaptor.getValue().pieceId());
+        verify(listener).onEvent(any(PiecePartiallyMoved.class));
     }
 }

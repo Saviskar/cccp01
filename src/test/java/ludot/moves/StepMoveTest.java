@@ -55,7 +55,7 @@ class StepMoveTest {
     void rule1_movesPieceToDestination() {
         PieceId id = new PieceId(Colour.RED, 1);
         board.moveTo(id, new OnTrack(10));
-        Move move = new StepMove(id, new OnTrack(10), new OnTrack(14), 4, Direction.CLOCKWISE, false, false);
+        Move move = new StepMove(id, new OnTrack(10), new OnTrack(14), 4, Direction.CLOCKWISE, false, false, false);
 
         move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN));
 
@@ -67,7 +67,7 @@ class StepMoveTest {
     void publishesPieceMovedWithFullDetail() {
         PieceId id = new PieceId(Colour.RED, 1);
         board.moveTo(id, new OnTrack(10));
-        Move move = new StepMove(id, new OnTrack(10), new OnTrack(14), 4, Direction.CLOCKWISE, false, false);
+        Move move = new StepMove(id, new OnTrack(10), new OnTrack(14), 4, Direction.CLOCKWISE, false, false, false);
 
         move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN));
 
@@ -86,7 +86,7 @@ class StepMoveTest {
     void nonCapturingMoveDoesNotCallLandingHandler() {
         PieceId id = new PieceId(Colour.RED, 1);
         board.moveTo(id, new OnTrack(10));
-        Move move = new StepMove(id, new OnTrack(10), new OnTrack(14), 4, Direction.CLOCKWISE, false, false);
+        Move move = new StepMove(id, new OnTrack(10), new OnTrack(14), 4, Direction.CLOCKWISE, false, false, false);
 
         move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN));
 
@@ -101,7 +101,7 @@ class StepMoveTest {
         Position destination = new OnTrack(14);
         when(landingHandler.resolveLanding(id, destination, board, events))
                 .thenReturn(new LandingResult(true, Optional.of(new PieceId(Colour.GREEN, 1))));
-        Move move = new StepMove(id, new OnTrack(10), destination, 4, Direction.CLOCKWISE, true, false);
+        Move move = new StepMove(id, new OnTrack(10), destination, 4, Direction.CLOCKWISE, true, false, false);
 
         MoveResult result = move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN));
 
@@ -117,7 +117,7 @@ class StepMoveTest {
         PieceId id = new PieceId(Colour.RED, 1);
         board.moveTo(id, new OnTrack(10));
         board.assignDirection(id, Direction.COUNTERCLOCKWISE);
-        Move move = new StepMove(id, new OnTrack(10), new OnTrack(9), 1, Direction.COUNTERCLOCKWISE, false, true);
+        Move move = new StepMove(id, new OnTrack(10), new OnTrack(9), 1, Direction.COUNTERCLOCKWISE, false, false, true);
 
         move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN));
 
@@ -130,7 +130,7 @@ class StepMoveTest {
         PieceId id = new PieceId(Colour.RED, 1);
         board.moveTo(id, new OnTrack(10));
         board.assignDirection(id, Direction.CLOCKWISE);
-        Move move = new StepMove(id, new OnTrack(10), new OnTrack(14), 4, Direction.CLOCKWISE, false, false);
+        Move move = new StepMove(id, new OnTrack(10), new OnTrack(14), 4, Direction.CLOCKWISE, false, false, false);
 
         move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN));
 
@@ -142,7 +142,7 @@ class StepMoveTest {
     void a12_stepMoveNeverTossesCoin() {
         PieceId id = new PieceId(Colour.RED, 1);
         board.moveTo(id, new OnTrack(10));
-        Move move = new StepMove(id, new OnTrack(10), new OnTrack(14), 4, Direction.CLOCKWISE, false, false);
+        Move move = new StepMove(id, new OnTrack(10), new OnTrack(14), 4, Direction.CLOCKWISE, false, false, false);
         Coin coin = mock(Coin.class);
 
         move.execute(new MoveContext(board, events, landingHandler, coin));

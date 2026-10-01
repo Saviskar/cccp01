@@ -312,6 +312,9 @@ TurnController.playTurn(player):
       end turn
     moves = moveGenerator.legalMoves(player, roll)
     if moves empty:
+      if any dead-end obstructions (A-48):        // T-3: no full move exists anywhere for this colour
+        publish(PieceBlocked) for each dead end; publish(ThrowIgnoredAfterBlock)
+        end turn                                    // A-47's exception: no bonus roll, even on six
       publish(NoMove)
       if roll == 6: continue                // A-47: six always grants a bonus roll
       end turn
@@ -554,3 +557,4 @@ during the corresponding phase's planning. A change recorded here is not a viola
 | 3 | 2.2, 2.3, 11.1 | `LandingHandler` added in `moves`, implemented by `LandingResolver` | Dependency inversion: a `Move` can trigger landing resolution without the `moves` package depending on `rules` |
 | 3 | 8.1 | The no-legal-moves branch continues the roll loop when the roll was a six, instead of unconditionally ending the turn | A-47: a six always grants a bonus roll, even when it produced no legal move |
 | 4a | 2.2, 11.1 | `moves` package depends on `random`; `Coin` added to `MoveContext` | T-1's coin toss happens inside `EnterFromBase.execute()`, once the piece reaches X, keeping `TurnController` free of per-move-type checks |
+| 4c | 8.1 | The no-legal-moves branch now checks for dead-end obstructions first: if any exist, each publishes `PieceBlocked`, followed by one `ThrowIgnoredAfterBlock`, and the turn ends unconditionally — skipping the six's bonus-roll `continue` | A-48: obstruction is only reported when it decides the turn; A-47's exception: a dead-end obstruction ends the turn even on a six, unlike an ordinary no-legal-move six |

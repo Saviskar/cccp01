@@ -7,14 +7,17 @@ import ludot.domain.Colour;
 import ludot.events.DiceRolled;
 import ludot.events.EventBus;
 import ludot.events.NoLegalMove;
+import ludot.events.PieceBlocked;
 import ludot.events.PlayerFinished;
 import ludot.events.ThirdSixIgnored;
+import ludot.events.ThrowIgnoredAfterBlock;
 import ludot.moves.LandingHandler;
 import ludot.moves.Move;
 import ludot.moves.MoveContext;
 import ludot.moves.MoveResult;
 import ludot.random.Coin;
 import ludot.random.Dice;
+import ludot.rules.MoveGenerationResult;
 import ludot.rules.MoveGenerator;
 
 import java.util.List;
@@ -22,8 +25,8 @@ import java.util.List;
 /**
  * Plays one player's turn: the roll loop, the six-streak (Rule 4), T-2's
  * capture bonus roll (A-23), and detecting when the colour has just finished
- * (Rule 11/A-41). T-6's with-a-block variant of Rule 4 (phase 4e, since
- * blocks don't exist yet) is not wired in.
+ * (Rule 11/A-41). T-6's with-a-block variant of Rule 4 (phase 4e) is not
+ * wired in yet.
  */
 public final class TurnController {
 
@@ -63,8 +66,8 @@ public final class TurnController {
             }
 
             RollOutcome outcome = playRoll(player, roll, board, standings, view);
-            if (outcome.finished()) {
-                return; // the colour just finished; the turn ends immediately
+            if (outcome.finished() || outcome.forceEndTurn()) {
+                return; // the colour just finished, or A-47's exception forces the turn to end
             }
 
             if (roll != SIX && !outcome.captured()) {
@@ -77,10 +80,10 @@ public final class TurnController {
 
     private RollOutcome playRoll(Player player, int roll, BoardState board, Standings standings, GameView view) {
         Colour colour = player.colour();
-        List<Move> moves = moveGenerator.legalMoves(colour, roll, board, topology);
+        MoveGenerationResult generation = moveGenerator.legalMoves(colour, roll, board, topology);
+        List<Move> moves = generation.legalMoves();
         if (moves.isEmpty()) {
-            events.publish(new NoLegalMove(colour, roll));
-            return new RollOutcome(false, false);
+            return reportNoMove(colour, roll, generation.deadEndObstructions());
         }
 
         Move chosen = player.strategy().choose(moves, view);
@@ -90,14 +93,30 @@ public final class TurnController {
         MoveResult result = chosen.execute(new MoveContext(board, events, landingHandler, coin));
 
         if (board.countAtHome(colour) != PIECES_PER_COLOUR) {
-            return new RollOutcome(result.captured(), false);
+            return new RollOutcome(result.captured(), false, false);
         }
         standings.recordFinish(colour);
         events.publish(new PlayerFinished(colour, standings.finishOrder().size()));
-        return new RollOutcome(result.captured(), true);
+        return new RollOutcome(result.captured(), true, false);
     }
 
-    /** Whether the executed move captured an opponent piece, and whether the colour just finished. */
-    private record RollOutcome(boolean captured, boolean finished) {
+    // A-48: each dead-end obstruction publishes its "is blocked" fact, followed by a single
+    // per-turn "ignoring the throw" fact — and NoLegalMove is skipped. A-47's exception: this
+    // forces the turn to end even if the roll was a six.
+    private RollOutcome reportNoMove(Colour colour, int roll, List<PieceBlocked> deadEnds) {
+        if (deadEnds.isEmpty()) {
+            events.publish(new NoLegalMove(colour, roll));
+            return new RollOutcome(false, false, false);
+        }
+        deadEnds.forEach(events::publish);
+        events.publish(new ThrowIgnoredAfterBlock(colour));
+        return new RollOutcome(false, false, true);
+    }
+
+    /**
+     * Whether the executed move captured an opponent piece, whether the colour just finished,
+     * and whether the turn must end regardless (A-47's obstruction exception).
+     */
+    private record RollOutcome(boolean captured, boolean finished, boolean forceEndTurn) {
     }
 }

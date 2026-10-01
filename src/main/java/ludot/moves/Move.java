@@ -8,7 +8,7 @@ import ludot.domain.Position;
  * strategy, then executed (Command, DESIGN.md 4.2). {@code permits} grows as
  * later phases add block/partial/mystery variants (T-3, T-4, T-11).
  */
-public sealed interface Move permits EnterFromBase, StepMove {
+public sealed interface Move permits EnterFromBase, StepMove, PartialMove {
 
     PieceId pieceId();
 

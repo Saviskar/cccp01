@@ -4,14 +4,24 @@ import ludot.board.BoardState;
 import ludot.domain.Direction;
 import ludot.domain.PieceId;
 import ludot.domain.Position;
-import ludot.events.PieceMoved;
+import ludot.events.PieceBlocked;
+import ludot.events.PiecePartiallyMoved;
 
-/** Rule 1: a piece already on the standard path (or home straight) moves by the roll value. */
-public record StepMove(
+/**
+ * A-16: a piece obstructed by an opponent block moves only as far as the cell
+ * before it, and only when the player has no other legal full move. Per
+ * A-48, this is the only move that reports the obstruction: it publishes the
+ * "is blocked" fact and the partial-move fact itself, tied to actually being
+ * chosen and executed.
+ */
+public record PartialMove(
         PieceId pieceId,
         Position origin,
         Position destination,
+        Position intendedDestination,
+        PieceId blockingPieceId,
         int rollValue,
+        int cellsMoved,
         Direction direction,
         boolean capturesSomething,
         boolean formsBlock,
@@ -25,16 +35,18 @@ public record StepMove(
     @Override
     public MoveResult execute(MoveContext context) {
         BoardState board = context.board();
+        context.events().publish(new PieceBlocked(pieceId, origin, intendedDestination, blockingPieceId));
+
         board.moveTo(pieceId, destination);
         if (crossesApproachWithoutEntering) {
             board.recordApproachCrossing(pieceId); // A-08
         }
-        context.events().publish(new PieceMoved(pieceId, origin, destination, rollValue, direction));
+        context.events().publish(new PiecePartiallyMoved(pieceId, origin, destination, cellsMoved, direction));
 
         if (!capturesSomething) {
             return new MoveResult(false);
         }
-        // A-46: the move message is published before the capture message.
+        // A-46: the movement fact is published before the capture fact.
         LandingResult landing = context.landingHandler().resolveLanding(pieceId, destination, board, context.events());
         return new MoveResult(landing.captured());
     }
