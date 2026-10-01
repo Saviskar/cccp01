@@ -101,6 +101,13 @@ Captures during these moves count but grant no bonus roll (A-22).
 
 **A-49 — Overshoot beats obstruction.** If the full roll would overshoot Home (A-09), the move is illegal for that piece even if an opponent block would have stopped it earlier; no partial move is offered and no blocked message is published. Only reachable once Alpha's energised effect doubles a roll (A-32).
 
+**A-53 — T-8 multi-piece capture.** When a block captures a same-size opponent block (T-8/A-20),
+one capture fact (plus its count line) is published per captured piece, in ascending
+piece-number order, each naming the capturing block's lowest-numbered member as capturer
+(A-51) and reusing the brief's capture template verbatim (A-43). Every capturing member's
+capture count increases by exactly 1 for the whole T-8 capture, not once per captured piece,
+and the capture grants a single bonus roll (A-23).
+
 ---
 
 ## 4. Captures and Turns

@@ -5,6 +5,7 @@ import ludot.board.BoardTopology;
 import ludot.domain.AtHome;
 import ludot.domain.Colour;
 import ludot.domain.Direction;
+import ludot.domain.InBase;
 import ludot.domain.InHomeStraight;
 import ludot.domain.OnTrack;
 import ludot.domain.PieceId;
@@ -13,6 +14,7 @@ import ludot.events.PieceBlocked;
 import ludot.moves.BlockMove;
 import ludot.moves.Move;
 import ludot.moves.MoveContext;
+import ludot.moves.MoveResult;
 import ludot.moves.PartialMove;
 import ludot.moves.StepMove;
 import ludot.random.Coin;
@@ -535,8 +537,8 @@ class MoveGeneratorTest {
     }
 
     @Test
-    @DisplayName("A-50: a block move is illegal when an opponent block occupies the landing cell")
-    void a50_blockMoveIllegalWhenOpponentBlockOnLandingCell() {
+    @DisplayName("T-8/A-20: a block move captures a same-size opponent block on the landing cell")
+    void t8_a20_blockMoveCapturesSameSizeOpponentBlockOnLandingCell() {
         PieceId member1 = new PieceId(Colour.RED, 1);
         PieceId member2 = new PieceId(Colour.RED, 2);
         board.moveTo(member1, new OnTrack(10));
@@ -548,7 +550,92 @@ class MoveGeneratorTest {
 
         List<Move> moves = legalMovesOnly(Colour.RED, 4);
 
+        BlockMove move = onlyBlockMove(moves).orElseThrow();
+        assertEquals(new OnTrack(12), move.destination());
+        assertTrue(move.capturesSomething());
+    }
+
+    @Test
+    @DisplayName("T-8/A-20: a block move is illegal when a different-size opponent block occupies the landing cell")
+    void t8_a20_blockMoveIllegalWhenDifferentSizeOpponentBlockOnLandingCell() {
+        PieceId member1 = new PieceId(Colour.RED, 1);
+        PieceId member2 = new PieceId(Colour.RED, 2);
+        board.moveTo(member1, new OnTrack(10));
+        board.assignDirection(member1, Direction.CLOCKWISE);
+        board.moveTo(member2, new OnTrack(10));
+        board.assignDirection(member2, Direction.CLOCKWISE);
+        board.moveTo(new PieceId(Colour.GREEN, 1), new OnTrack(12));
+        board.moveTo(new PieceId(Colour.GREEN, 2), new OnTrack(12));
+        board.moveTo(new PieceId(Colour.GREEN, 3), new OnTrack(12));
+
+        List<Move> moves = legalMovesOnly(Colour.RED, 4);
+
         assertTrue(onlyBlockMove(moves).isEmpty());
+    }
+
+    @Test
+    @DisplayName("T-8/A-20: executing a block-vs-block capture returns every opponent member to base, "
+            + "increments each capturing member's count once, and reports a single capture for the bonus roll")
+    void t8_a20_blockVsBlockCaptureExecutesEndToEnd() {
+        PieceId member1 = new PieceId(Colour.RED, 1);
+        PieceId member2 = new PieceId(Colour.RED, 2);
+        PieceId opponent1 = new PieceId(Colour.GREEN, 1);
+        PieceId opponent2 = new PieceId(Colour.GREEN, 2);
+        board.moveTo(member1, new OnTrack(10));
+        board.assignDirection(member1, Direction.CLOCKWISE);
+        board.moveTo(member2, new OnTrack(10));
+        board.assignDirection(member2, Direction.CLOCKWISE);
+        board.moveTo(opponent1, new OnTrack(12));
+        board.moveTo(opponent2, new OnTrack(12));
+
+        List<Move> moves = legalMovesOnly(Colour.RED, 4);
+        BlockMove move = onlyBlockMove(moves).orElseThrow();
+
+        Coin unusedCoin = () -> Direction.CLOCKWISE;
+        MoveResult result = move.execute(new MoveContext(board, new EventBus(), new LandingResolver(), unusedCoin));
+
+        assertInstanceOf(InBase.class, board.piece(opponent1).position());
+        assertInstanceOf(InBase.class, board.piece(opponent2).position());
+        assertEquals(1, board.piece(member1).captureCount());
+        assertEquals(1, board.piece(member2).captureCount());
+        assertTrue(result.captured()); // A-53: a single flag, regardless of how many pieces were captured
+    }
+
+    @Test
+    @DisplayName("T-8/A-20: a block-vs-block capture generalises past size 2 — a 3-member block "
+            + "captures a same-size 3-member block")
+    void t8_a20_blockVsBlockCaptureExecutesEndToEndForThreeMemberBlocks() {
+        PieceId member1 = new PieceId(Colour.RED, 1);
+        PieceId member2 = new PieceId(Colour.RED, 2);
+        PieceId member3 = new PieceId(Colour.RED, 3);
+        PieceId opponent1 = new PieceId(Colour.GREEN, 1);
+        PieceId opponent2 = new PieceId(Colour.GREEN, 2);
+        PieceId opponent3 = new PieceId(Colour.GREEN, 3);
+        board.moveTo(member1, new OnTrack(10));
+        board.assignDirection(member1, Direction.CLOCKWISE);
+        board.moveTo(member2, new OnTrack(10));
+        board.assignDirection(member2, Direction.CLOCKWISE);
+        board.moveTo(member3, new OnTrack(10));
+        board.assignDirection(member3, Direction.CLOCKWISE);
+        board.moveTo(opponent1, new OnTrack(12));
+        board.moveTo(opponent2, new OnTrack(12));
+        board.moveTo(opponent3, new OnTrack(12));
+
+        // floor(6/3)=2 cells from 10 lands exactly on the opponent block at 12.
+        List<Move> moves = legalMovesOnly(Colour.RED, 6);
+        BlockMove move = onlyBlockMove(moves).orElseThrow();
+        assertTrue(move.capturesSomething());
+
+        Coin unusedCoin = () -> Direction.CLOCKWISE;
+        MoveResult result = move.execute(new MoveContext(board, new EventBus(), new LandingResolver(), unusedCoin));
+
+        assertInstanceOf(InBase.class, board.piece(opponent1).position());
+        assertInstanceOf(InBase.class, board.piece(opponent2).position());
+        assertInstanceOf(InBase.class, board.piece(opponent3).position());
+        assertEquals(1, board.piece(member1).captureCount());
+        assertEquals(1, board.piece(member2).captureCount());
+        assertEquals(1, board.piece(member3).captureCount());
+        assertTrue(result.captured()); // A-53: a single flag, regardless of how many pieces were captured
     }
 
     @Test

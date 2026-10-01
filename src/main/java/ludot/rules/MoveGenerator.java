@@ -153,7 +153,10 @@ public final class MoveGenerator {
         if (occupant.get() == colour) {
             return new OccupancyOutcome(false, true); // A-14: lands on own colour, forms a block.
         }
-        return new OccupancyOutcome(true, false); // a lone opponent — a block would already have obstructed the walk.
+        // An opponent occupant here is always a capture: for a single piece's walk, a block would
+        // already have obstructed it (so the occupant is a lone piece); for a block move's landing
+        // cell, buildBlockMove already confirmed any opponent block there is the same size (T-8/A-20).
+        return new OccupancyOutcome(true, false);
     }
 
     // T-4/A-17: a block move is offered for every own-colour block, independently of the
@@ -196,10 +199,12 @@ public final class MoveGenerator {
         return counterclockwiseBest > clockwiseBest ? Direction.COUNTERCLOCKWISE : Direction.CLOCKWISE;
     }
 
-    // A-50: an opponent block anywhere on the path, including the landing cell, makes the whole
-    // block move illegal — no partial block moves exist. A-08: a counterclockwise walk that
-    // steps past (leaves) the shared Approach cell records a crossing for every member (A-18:
-    // a block move never enters the home straight, so this is always a non-entering crossing).
+    // A-50: an opponent block anywhere on the path before the landing cell makes the whole block
+    // move illegal — no partial block moves exist. T-8/A-20: a same-size opponent block on the
+    // landing cell is a legal capture instead; a different-size block there still obstructs, as
+    // does an opponent block of any size encountered earlier on the path. A-08: a counterclockwise
+    // walk that steps past (leaves) the shared Approach cell records a crossing for every member
+    // (A-18: a block move never enters the home straight, so this is always a non-entering crossing).
     private Optional<Move> buildBlockMove(
             List<PieceId> members, int originCell, int roll, int cellsPerPiece, Direction direction, Colour colour,
             BoardState board, BoardTopology topology) {
@@ -211,8 +216,11 @@ public final class MoveGenerator {
                 crossesApproach = true;
             }
             idx = topology.step(idx, direction);
+            boolean isLandingCell = step == cellsPerPiece - 1;
             if (board.isBlock(idx) && board.colourAt(idx).orElseThrow() != colour) {
-                return Optional.empty();
+                if (!isLandingCell || board.piecesAt(idx).size() != members.size()) {
+                    return Optional.empty();
+                }
             }
         }
         OccupancyOutcome occupancy = occupancyOutcome(idx, colour, board);
