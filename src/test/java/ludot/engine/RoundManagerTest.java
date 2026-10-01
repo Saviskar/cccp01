@@ -14,6 +14,7 @@ import ludot.events.GameEventListener;
 import ludot.events.RoundStatusReported;
 import ludot.players.FirstLegalMoveStrategy;
 import ludot.random.Dice;
+import ludot.rules.BlockBreakPlanner;
 import ludot.rules.LandingResolver;
 import ludot.rules.MoveGenerator;
 import ludot.rules.MovementCalculator;
@@ -60,7 +61,7 @@ class RoundManagerTest {
         // an unused Mockito stub tripping strict-stubs.
         TurnController turnController = new TurnController(
                 dice, () -> Direction.CLOCKWISE, new MoveGenerator(new MovementCalculator()), topology, events,
-                new LandingResolver());
+                new LandingResolver(), new BlockBreakPlanner());
         roundManager = new RoundManager(turnController, events);
     }
 

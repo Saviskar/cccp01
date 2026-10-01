@@ -18,6 +18,7 @@ public sealed interface GameEvent permits
         ThrowIgnoredAfterBlock,
         NoLegalMove,
         ThirdSixIgnored,
+        BlockadeBroken,
         RoundStatusReported,
         PlayerFinished,
         GameEnded {

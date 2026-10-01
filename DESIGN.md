@@ -62,7 +62,8 @@ Dependencies point one way only, towards `domain`. `players` does **not** depend
 | `Piece` | One piece's state: position, original direction, capture count, counterclockwise crossing counter, active effect. Lives in `board`; its mutators are package-private, so only `BoardState` can change it. |
 | `PieceEffect` | Timed effect on a piece (Energised, Sick, Briefing): modifies steps, blocks movement, counts down. |
 | `MovementCalculator` | Walks a route cell by cell: applies Rule 9/10, T-1, T-7, and block obstruction (T-3). Returns a destination or the reason it is illegal. |
-| `MoveGenerator` | Builds every legal `Move` for a player and roll, including block moves (T-4) and partial moves (A-16). |
+| `MoveGenerator` | Builds every legal `Move` for a player and roll, including block moves (T-4) and partial moves (A-16); also builds a single forced break-move via `forcedMove` for T-6/A-22. |
+| `BlockBreakPlanner` | Snapshots which blocks a colour owns and how each must break (who stays, who leaves, units each) when a third consecutive six lands, before any member moves (T-6/A-22). |
 | `Move` | A command object describing one legal move, which can execute itself. |
 | `LandingResolver` | What happens when something lands on a cell: captures (Rule 6, T-2, T-8), block formation, obstruction. Shared by normal moves and teleports so the logic isn't duplicated. Implements `moves.LandingHandler`, so a `Move` can trigger landing resolution without the `moves` package depending on `rules` (dependency inversion). |
 | `MysteryResolver` | Mystery cell trigger: picks an outcome, teleports, applies Alpha/Beta/Gamma effects (T-11 to T-15). |
@@ -406,6 +407,10 @@ classDiagram
     }
     class MoveGenerator {
         +legalMoves(player, roll) List~Move~
+        +forcedMove(piece, units, direction, breaksBlock, board, topology) ForcedMoveOutcome
+    }
+    class BlockBreakPlanner {
+        +plan(colour, board, topology) List~BlockBreak~
     }
     class MovementCalculator {
         +walk(piece, steps, direction) RouteResult
@@ -480,6 +485,7 @@ classDiagram
     TurnController --> PlayerStrategy
     TurnController --> Dice
     TurnController --> Coin
+    TurnController --> BlockBreakPlanner
     MoveGenerator --> MovementCalculator
     MovementCalculator --> BoardTopology
     MovementCalculator --> BoardState
@@ -559,3 +565,4 @@ during the corresponding phase's planning. A change recorded here is not a viola
 | 4a | 2.2, 11.1 | `moves` package depends on `random`; `Coin` added to `MoveContext` | T-1's coin toss happens inside `EnterFromBase.execute()`, once the piece reaches X, keeping `TurnController` free of per-move-type checks |
 | 4c | 8.1 | The no-legal-moves branch now checks for dead-end obstructions first: if any exist, each publishes `PieceBlocked`, followed by one `ThrowIgnoredAfterBlock`, and the turn ends unconditionally — skipping the six's bonus-roll `continue` | A-48: obstruction is only reported when it decides the turn; A-47's exception: a dead-end obstruction ends the turn even on a six, unlike an ordinary no-legal-move six |
 | 4d | 3.8, 11.1 | `BlockBreakMove` dropped from the `Move` implementation list; `Move` gains a `breaksBlock(): bool` fact instead. `LandingHandler.resolveLanding`'s diagram signature widens from a single `moverId` to `moverIds` | T-5 already holds via ordinary `StepMove`/`PartialMove` generation, which already uses `Piece.originalDirection()` regardless of block membership — a dedicated break-move type would add no behaviour, so strategies instead read a precomputed fact (OCP/F2), matching `formsBlock()`. The `LandingHandler` signature widens so `LandingResolver` can credit every member of a capturing block (A-19/A-51) without duplicating capture logic inside `BlockMove` (DESIGN.md §2.3's stated sharing goal for `LandingResolver`) |
+| 4e | 2.3, 11.1 | `BlockBreakPlanner`/`BlockBreak` added in `rules`; `MoveGenerator` gains a public `forcedMove(...)` entry point and `ForcedMoveOutcome`; `BoardState` gains `blockCellsOf(Colour)`, replacing `MoveGenerator`'s private duplicate; `BlockadeBroken` added to `GameEvent` | T-6/A-22 needs the blocks a colour owns captured as a fixed snapshot before any member moves (so a leaver landing on another of the colour's own blocks mid-sequence can't be mistaken for a new/resized block), while each leaver's actual walk is still computed fresh against the live board; `forcedMove` reuses `MoveGenerator`'s existing move-building logic instead of duplicating it, and the block-cell query moves onto `BoardState` so the planner and `MoveGenerator` share one source of truth instead of two |

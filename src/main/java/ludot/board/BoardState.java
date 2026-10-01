@@ -87,6 +87,19 @@ public final class BoardState implements GameView {
         return occupants.isEmpty() ? Optional.empty() : Optional.of(occupants.get(0).colour());
     }
 
+    // A-14: all standard-track cells currently occupied by 2+ of this colour's own pieces. Derived
+    // from the colour's own (at most 4) pieces, rather than scanning every track cell: a block can
+    // only ever be at a cell one of this colour's pieces occupies.
+    public List<Integer> blockCellsOf(Colour colour) {
+        List<Integer> cells = new ArrayList<>();
+        for (Piece piece : piecesOfColour(colour)) {
+            if (piece.position() instanceof OnTrack(int idx) && isBlock(idx) && !cells.contains(idx)) {
+                cells.add(idx);
+            }
+        }
+        return cells;
+    }
+
     public int countInBase(Colour colour) {
         return countWhere(colour, position -> position instanceof InBase);
     }

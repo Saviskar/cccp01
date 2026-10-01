@@ -26,6 +26,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MoveGeneratorTest {
@@ -703,5 +704,86 @@ class MoveGeneratorTest {
         assertEquals(1, move1.cellsMoved());
         assertTrue(move1.breaksBlock());
         assertTrue(move2.breaksBlock());
+    }
+
+    @Test
+    @DisplayName("T-6/A-22: forcedMove builds a plain step move when the path is clear")
+    void t6_a22_forcedMoveReachable_buildsStepMove() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new OnTrack(10));
+        board.assignDirection(id, Direction.CLOCKWISE);
+
+        ForcedMoveOutcome outcome =
+                generator.forcedMove(board.piece(id), 6, Direction.CLOCKWISE, true, board, topology);
+
+        ForcedMoveOutcome.Movable movable = assertInstanceOf(ForcedMoveOutcome.Movable.class, outcome);
+        StepMove move = assertInstanceOf(StepMove.class, movable.move());
+        assertEquals(new OnTrack(16), move.destination());
+        assertTrue(move.breaksBlock());
+    }
+
+    @Test
+    @DisplayName("A-52: forcedMove builds a partial move when obstructed with cells to spare")
+    void a52_forcedMoveObstructedWithRoom_buildsPartialMove() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new OnTrack(0));
+        board.assignDirection(id, Direction.CLOCKWISE);
+        board.moveTo(new PieceId(Colour.GREEN, 1), new OnTrack(4));
+        board.moveTo(new PieceId(Colour.GREEN, 2), new OnTrack(4));
+
+        ForcedMoveOutcome outcome =
+                generator.forcedMove(board.piece(id), 6, Direction.CLOCKWISE, true, board, topology);
+
+        ForcedMoveOutcome.Movable movable = assertInstanceOf(ForcedMoveOutcome.Movable.class, outcome);
+        PartialMove move = assertInstanceOf(PartialMove.class, movable.move());
+        assertEquals(new OnTrack(3), move.destination());
+        assertEquals(3, move.cellsMoved());
+    }
+
+    @Test
+    @DisplayName("A-52: forcedMove returns a dead end when the obstructing block is immediately adjacent")
+    void a52_forcedMoveObstructedAdjacent_returnsDeadEnd() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new OnTrack(10));
+        board.assignDirection(id, Direction.CLOCKWISE);
+        board.moveTo(new PieceId(Colour.GREEN, 1), new OnTrack(11));
+        board.moveTo(new PieceId(Colour.GREEN, 2), new OnTrack(11));
+
+        ForcedMoveOutcome outcome =
+                generator.forcedMove(board.piece(id), 6, Direction.CLOCKWISE, true, board, topology);
+
+        ForcedMoveOutcome.DeadEnd deadEnd = assertInstanceOf(ForcedMoveOutcome.DeadEnd.class, outcome);
+        assertEquals(id, deadEnd.blocked().pieceId());
+        assertEquals(new OnTrack(10), deadEnd.blocked().from());
+        assertEquals(new OnTrack(16), deadEnd.blocked().intendedDestination());
+    }
+
+    @Test
+    @DisplayName("T-6: forcedMove's overshoot branch is defensive only — unreachable via real play "
+            + "(A-05/A-09: minimum on-track distance to home is 6, matching A-22's maximum unit share)")
+    void t6_forcedMoveThrowsOnOvershoot_defensiveOnlyUnreachableInPlay() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new InHomeStraight(3));
+        board.assignDirection(id, Direction.CLOCKWISE);
+
+        assertThrows(IllegalStateException.class,
+                () -> generator.forcedMove(board.piece(id), 6, Direction.CLOCKWISE, false, board, topology));
+    }
+
+    @Test
+    @DisplayName("T-6/A-22: forcedMove lands a piece exactly on Home when it sits on the Approach cell")
+    void t6_a22_forcedMoveFromApproach_landsExactlyOnHome() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        int approach = topology.approachIndex(Colour.RED);
+        board.moveTo(id, new OnTrack(approach));
+        board.assignDirection(id, Direction.CLOCKWISE);
+        board.recordCapture(id); // stays valid once T-7/phase 4f gates home-straight entry on a capture
+
+        ForcedMoveOutcome outcome =
+                generator.forcedMove(board.piece(id), 6, Direction.CLOCKWISE, true, board, topology);
+
+        ForcedMoveOutcome.Movable movable = assertInstanceOf(ForcedMoveOutcome.Movable.class, outcome);
+        StepMove move = assertInstanceOf(StepMove.class, movable.move());
+        assertEquals(new AtHome(), move.destination());
     }
 }
