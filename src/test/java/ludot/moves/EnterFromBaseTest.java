@@ -57,7 +57,7 @@ class EnterFromBaseTest {
     @DisplayName("Rule 2: moves the piece from base to X")
     void rule2_movesPieceFromBaseToX() {
         PieceId id = new PieceId(Colour.RED, 1);
-        Move move = new EnterFromBase(id, new OnTrack(RED_X), false);
+        Move move = new EnterFromBase(id, new OnTrack(RED_X), false, false);
         when(coin.toss()).thenReturn(Direction.CLOCKWISE);
 
         move.execute(new MoveContext(board, events, landingHandler, coin));
@@ -69,7 +69,7 @@ class EnterFromBaseTest {
     @DisplayName("Rule 8/A-12: heads assigns the clockwise direction")
     void rule8_a12_headsAssignsClockwise() {
         PieceId id = new PieceId(Colour.RED, 1);
-        Move move = new EnterFromBase(id, new OnTrack(RED_X), false);
+        Move move = new EnterFromBase(id, new OnTrack(RED_X), false, false);
         when(coin.toss()).thenReturn(Direction.CLOCKWISE);
 
         move.execute(new MoveContext(board, events, landingHandler, coin));
@@ -81,7 +81,7 @@ class EnterFromBaseTest {
     @DisplayName("A-12: tails assigns the counterclockwise direction")
     void a12_tailsAssignsCounterclockwise() {
         PieceId id = new PieceId(Colour.RED, 1);
-        Move move = new EnterFromBase(id, new OnTrack(RED_X), false);
+        Move move = new EnterFromBase(id, new OnTrack(RED_X), false, false);
         when(coin.toss()).thenReturn(Direction.COUNTERCLOCKWISE);
 
         move.execute(new MoveContext(board, events, landingHandler, coin));
@@ -93,7 +93,7 @@ class EnterFromBaseTest {
     @DisplayName("A-12: the coin is tossed exactly once")
     void a12_tossesCoinExactlyOnce() {
         PieceId id = new PieceId(Colour.RED, 1);
-        Move move = new EnterFromBase(id, new OnTrack(RED_X), false);
+        Move move = new EnterFromBase(id, new OnTrack(RED_X), false, false);
         when(coin.toss()).thenReturn(Direction.CLOCKWISE);
 
         move.execute(new MoveContext(board, events, landingHandler, coin));
@@ -105,7 +105,7 @@ class EnterFromBaseTest {
     @DisplayName("publishes PieceEnteredX with the mover's updated board/base counts")
     void publishesPieceEnteredXWithUpdatedCounts() {
         PieceId id = new PieceId(Colour.RED, 1);
-        Move move = new EnterFromBase(id, new OnTrack(RED_X), false);
+        Move move = new EnterFromBase(id, new OnTrack(RED_X), false, false);
         when(coin.toss()).thenReturn(Direction.CLOCKWISE);
 
         move.execute(new MoveContext(board, events, landingHandler, coin));
@@ -121,7 +121,7 @@ class EnterFromBaseTest {
     @DisplayName("A-12: publishes PieceDirectionAssigned after PieceEnteredX")
     void a12_publishesPieceDirectionAssignedAfterPieceEnteredX() {
         PieceId id = new PieceId(Colour.RED, 1);
-        Move move = new EnterFromBase(id, new OnTrack(RED_X), false);
+        Move move = new EnterFromBase(id, new OnTrack(RED_X), false, false);
         when(coin.toss()).thenReturn(Direction.COUNTERCLOCKWISE);
 
         move.execute(new MoveContext(board, events, landingHandler, coin));
@@ -138,7 +138,7 @@ class EnterFromBaseTest {
     @DisplayName("a non-capturing entry never calls the landing handler")
     void nonCapturingEntryDoesNotCallLandingHandler() {
         PieceId id = new PieceId(Colour.RED, 1);
-        Move move = new EnterFromBase(id, new OnTrack(RED_X), false);
+        Move move = new EnterFromBase(id, new OnTrack(RED_X), false, false);
         when(coin.toss()).thenReturn(Direction.CLOCKWISE);
 
         move.execute(new MoveContext(board, events, landingHandler, coin));
@@ -154,7 +154,7 @@ class EnterFromBaseTest {
         when(landingHandler.resolveLanding(id, destination, board, events))
                 .thenReturn(new LandingResult(true, Optional.of(new PieceId(Colour.GREEN, 1))));
         when(coin.toss()).thenReturn(Direction.CLOCKWISE);
-        Move move = new EnterFromBase(id, destination, true);
+        Move move = new EnterFromBase(id, destination, true, false);
 
         MoveResult result = move.execute(new MoveContext(board, events, landingHandler, coin));
 

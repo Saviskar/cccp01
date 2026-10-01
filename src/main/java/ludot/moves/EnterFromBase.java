@@ -9,16 +9,12 @@ import ludot.events.PieceDirectionAssigned;
 import ludot.events.PieceEnteredX;
 
 /** Rule 2: a piece moves from base to its colour's starting square X. */
-public record EnterFromBase(PieceId pieceId, Position destination, boolean capturesSomething) implements Move {
+public record EnterFromBase(PieceId pieceId, Position destination, boolean capturesSomething, boolean formsBlock)
+        implements Move {
 
     @Override
     public Position origin() {
         return new InBase();
-    }
-
-    @Override
-    public boolean formsBlock() {
-        return false;
     }
 
     @Override

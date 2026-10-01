@@ -1,11 +1,14 @@
 package ludot.rules;
 
+import ludot.board.BoardState;
 import ludot.board.BoardTopology;
 import ludot.domain.AtHome;
 import ludot.domain.Colour;
 import ludot.domain.Direction;
 import ludot.domain.InHomeStraight;
 import ludot.domain.OnTrack;
+import ludot.domain.PieceId;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -15,11 +18,17 @@ class MovementCalculatorTest {
 
     private final BoardTopology topology = new BoardTopology();
     private final MovementCalculator calculator = new MovementCalculator();
+    private BoardState board;
+
+    @BeforeEach
+    void setUp() {
+        board = new BoardState();
+    }
 
     @Test
     @DisplayName("a1_rule1: a step within the standard track moves forward by the roll")
     void rule1_stepsForwardOnTrack() {
-        RouteResult result = calculator.walk(new OnTrack(10), 4, Colour.RED, Direction.CLOCKWISE, 0, topology);
+        RouteResult result = calculator.walk(new OnTrack(10), 4, Colour.RED, Direction.CLOCKWISE, 0, topology, board);
         assertEquals(new RouteResult.Reachable(new OnTrack(14), false), result);
     }
 
@@ -27,8 +36,8 @@ class MovementCalculatorTest {
     @DisplayName("A-06: landing exactly on Approach stays on the standard track")
     void a06_landingOnApproachStaysOnTrack() {
         int approach = topology.approachIndex(Colour.RED);
-        RouteResult result =
-                calculator.walk(new OnTrack(approach - 3), 3, Colour.RED, Direction.CLOCKWISE, 0, topology);
+        RouteResult result = calculator.walk(
+                new OnTrack(approach - 3), 3, Colour.RED, Direction.CLOCKWISE, 0, topology, board);
         assertEquals(new RouteResult.Reachable(new OnTrack(approach), false), result);
     }
 
@@ -36,21 +45,24 @@ class MovementCalculatorTest {
     @DisplayName("Rule 9: passing the Approach cell enters the home straight")
     void rule9_passingApproachEntersHomeStraight() {
         int approach = topology.approachIndex(Colour.RED);
-        RouteResult result = calculator.walk(new OnTrack(approach), 2, Colour.RED, Direction.CLOCKWISE, 0, topology);
+        RouteResult result =
+                calculator.walk(new OnTrack(approach), 2, Colour.RED, Direction.CLOCKWISE, 0, topology, board);
         assertEquals(new RouteResult.Reachable(new InHomeStraight(1), false), result);
     }
 
     @Test
     @DisplayName("Rule 10: the exact roll to reach Home lands AtHome")
     void rule10_exactRollReachesHome() {
-        RouteResult result = calculator.walk(new InHomeStraight(3), 2, Colour.RED, Direction.CLOCKWISE, 0, topology);
+        RouteResult result =
+                calculator.walk(new InHomeStraight(3), 2, Colour.RED, Direction.CLOCKWISE, 0, topology, board);
         assertEquals(new RouteResult.Reachable(new AtHome(), false), result);
     }
 
     @Test
     @DisplayName("A-09/Rule 10: overshooting Home is illegal, with no bounce-back")
     void a09_overshootingHomeIsIllegal() {
-        RouteResult result = calculator.walk(new InHomeStraight(3), 3, Colour.RED, Direction.CLOCKWISE, 0, topology);
+        RouteResult result =
+                calculator.walk(new InHomeStraight(3), 3, Colour.RED, Direction.CLOCKWISE, 0, topology, board);
         assertEquals(new RouteResult.Overshoot(), result);
     }
 
@@ -60,14 +72,15 @@ class MovementCalculatorTest {
         Colour colour = Colour.YELLOW;
         int x = topology.xIndex(colour);
         // 50 steps reaches Approach (A-05), then 6 more reaches Home: 56 in total (A-05).
-        RouteResult result = calculator.walk(new OnTrack(x), 56, colour, Direction.CLOCKWISE, 0, topology);
+        RouteResult result = calculator.walk(new OnTrack(x), 56, colour, Direction.CLOCKWISE, 0, topology, board);
         assertEquals(new RouteResult.Reachable(new AtHome(), false), result);
     }
 
     @Test
     @DisplayName("T-1: a counterclockwise step decrements the track index")
     void t1_stepsBackwardWhenCounterclockwise() {
-        RouteResult result = calculator.walk(new OnTrack(10), 3, Colour.RED, Direction.COUNTERCLOCKWISE, 0, topology);
+        RouteResult result =
+                calculator.walk(new OnTrack(10), 3, Colour.RED, Direction.COUNTERCLOCKWISE, 0, topology, board);
         assertEquals(new RouteResult.Reachable(new OnTrack(7), false), result);
     }
 
@@ -76,7 +89,8 @@ class MovementCalculatorTest {
     void a08_firstApproachCrossingContinuesOnTrack() {
         Colour colour = Colour.RED;
         int approach = topology.approachIndex(colour);
-        RouteResult result = calculator.walk(new OnTrack(approach), 1, colour, Direction.COUNTERCLOCKWISE, 0, topology);
+        RouteResult result =
+                calculator.walk(new OnTrack(approach), 1, colour, Direction.COUNTERCLOCKWISE, 0, topology, board);
         assertEquals(new RouteResult.Reachable(new OnTrack(topology.step(approach, Direction.COUNTERCLOCKWISE)), true),
                 result);
     }
@@ -87,7 +101,8 @@ class MovementCalculatorTest {
         Colour colour = Colour.RED;
         int approach = topology.approachIndex(colour);
         int start = topology.step(approach, Direction.CLOCKWISE); // one cell before Approach, moving CCW
-        RouteResult result = calculator.walk(new OnTrack(start), 1, colour, Direction.COUNTERCLOCKWISE, 0, topology);
+        RouteResult result =
+                calculator.walk(new OnTrack(start), 1, colour, Direction.COUNTERCLOCKWISE, 0, topology, board);
         assertEquals(new RouteResult.Reachable(new OnTrack(approach), false), result);
     }
 
@@ -96,7 +111,8 @@ class MovementCalculatorTest {
     void a08_secondCrossingEntersHomeStraight() {
         Colour colour = Colour.RED;
         int approach = topology.approachIndex(colour);
-        RouteResult result = calculator.walk(new OnTrack(approach), 1, colour, Direction.COUNTERCLOCKWISE, 1, topology);
+        RouteResult result =
+                calculator.walk(new OnTrack(approach), 1, colour, Direction.COUNTERCLOCKWISE, 1, topology, board);
         assertEquals(new RouteResult.Reachable(new InHomeStraight(0), false), result);
     }
 
@@ -105,7 +121,87 @@ class MovementCalculatorTest {
     void a08_fullCounterclockwiseRouteIsSixtySteps() {
         Colour colour = Colour.YELLOW;
         int x = topology.xIndex(colour);
-        RouteResult result = calculator.walk(new OnTrack(x), 60, colour, Direction.COUNTERCLOCKWISE, 0, topology);
+        RouteResult result =
+                calculator.walk(new OnTrack(x), 60, colour, Direction.COUNTERCLOCKWISE, 0, topology, board);
         assertEquals(new RouteResult.Reachable(new AtHome(), true), result);
+    }
+
+    @Test
+    @DisplayName("Rule 5: a single opponent piece along the path does not obstruct")
+    void rule5_singleOpponentDoesNotObstruct() {
+        board.moveTo(new PieceId(Colour.GREEN, 1), new OnTrack(12));
+
+        RouteResult result = calculator.walk(new OnTrack(10), 4, Colour.RED, Direction.CLOCKWISE, 0, topology, board);
+
+        assertEquals(new RouteResult.Reachable(new OnTrack(14), false), result);
+    }
+
+    @Test
+    @DisplayName("A-15: an own-colour block does not obstruct")
+    void a15_ownColourBlockDoesNotObstruct() {
+        board.moveTo(new PieceId(Colour.RED, 2), new OnTrack(12));
+        board.moveTo(new PieceId(Colour.RED, 3), new OnTrack(12));
+
+        RouteResult result = calculator.walk(new OnTrack(10), 4, Colour.RED, Direction.CLOCKWISE, 0, topology, board);
+
+        assertEquals(new RouteResult.Reachable(new OnTrack(14), false), result);
+    }
+
+    @Test
+    @DisplayName("A-16: an opponent block directly ahead obstructs, with 0 cells of partial movement")
+    void a16_opponentBlockObstructsAdjacent() {
+        PieceId blocker1 = new PieceId(Colour.GREEN, 1);
+        PieceId blocker2 = new PieceId(Colour.GREEN, 2);
+        board.moveTo(blocker1, new OnTrack(11));
+        board.moveTo(blocker2, new OnTrack(11));
+
+        RouteResult result = calculator.walk(new OnTrack(10), 4, Colour.RED, Direction.CLOCKWISE, 0, topology, board);
+
+        assertEquals(
+                new RouteResult.Obstructed(new OnTrack(10), 0, false, new OnTrack(14), blocker1), result);
+    }
+
+    @Test
+    @DisplayName("T-3 worked example: G1 at 0, an R block at 4, rolling 6 stops at cell 3")
+    void t3_workedExampleObstructedPartwayStopsBeforeBlock() {
+        PieceId r1 = new PieceId(Colour.RED, 1);
+        PieceId r2 = new PieceId(Colour.RED, 2);
+        board.moveTo(r1, new OnTrack(4));
+        board.moveTo(r2, new OnTrack(4));
+
+        RouteResult result = calculator.walk(new OnTrack(0), 6, Colour.GREEN, Direction.CLOCKWISE, 0, topology, board);
+
+        assertEquals(new RouteResult.Obstructed(new OnTrack(3), 3, false, new OnTrack(6), r1), result);
+    }
+
+    @Test
+    @DisplayName("T-3: obstruction also stops a counterclockwise walk before the block")
+    void t3_counterclockwiseObstructionStopsBeforeBlock() {
+        PieceId r1 = new PieceId(Colour.RED, 1);
+        PieceId r2 = new PieceId(Colour.RED, 2);
+        board.moveTo(r1, new OnTrack(6));
+        board.moveTo(r2, new OnTrack(6));
+
+        RouteResult result =
+                calculator.walk(new OnTrack(10), 6, Colour.GREEN, Direction.COUNTERCLOCKWISE, 0, topology, board);
+
+        assertEquals(new RouteResult.Obstructed(new OnTrack(7), 3, false, new OnTrack(4), r1), result);
+    }
+
+    @Test
+    @DisplayName("A-49: an obstruction found early in the walk is superseded by a later overshoot")
+    void a49_overshootBeatsObstruction() {
+        // Approach for RED is cell 24 (A-02); starting 5 cells before it and rolling 12 passes
+        // an opponent block on the way, then reaches Home exactly at step 11 and overshoots on
+        // step 12 — the overshoot must win, since the move is illegal either way.
+        int approach = topology.approachIndex(Colour.RED);
+        int origin = approach - 5;
+        board.moveTo(new PieceId(Colour.GREEN, 1), new OnTrack(origin + 2));
+        board.moveTo(new PieceId(Colour.GREEN, 2), new OnTrack(origin + 2));
+
+        RouteResult result =
+                calculator.walk(new OnTrack(origin), 12, Colour.RED, Direction.CLOCKWISE, 0, topology, board);
+
+        assertEquals(new RouteResult.Overshoot(), result);
     }
 }
