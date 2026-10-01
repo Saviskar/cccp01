@@ -27,6 +27,9 @@ public final class BoardTopology {
     private static final int YELLOW_APPROACH_TO_BETA = 27;
     private static final int YELLOW_APPROACH_TO_GAMMA = 46;
 
+    // A-05/A-08: steps from Approach to Home (homepath0-4, then Home).
+    private static final int APPROACH_TO_HOME = HOME_STRAIGHT_LENGTH + 1;
+
     public int xIndex(Colour colour) {
         return Math.floorMod(COLOUR_X_STEP * colour.index(), TRACK_SIZE);
     }
@@ -54,5 +57,28 @@ public final class BoardTopology {
     public int step(int trackIndex, Direction direction) {
         int delta = direction == Direction.CLOCKWISE ? 1 : -1;
         return Math.floorMod(trackIndex + delta, TRACK_SIZE);
+    }
+
+    /**
+     * A-13: steps remaining to Home from a standard-track cell, assuming T-7 eligibility
+     * (unknowable in advance) will be satisfied by the next Approach visit. Scoped to what
+     * A-17's block-direction tie-break needs: comparing same-cell block members, who are
+     * always on the standard track (blocks never form in the home straight, A-10).
+     *
+     * @param ccwApproachCrossings the piece's crossing count (A-08); irrelevant for
+     *                             {@link Direction#CLOCKWISE}. A counterclockwise piece that
+     *                             hasn't made its non-counting first crossing yet (A-08) needs
+     *                             one more full lap before the crossing that actually counts.
+     */
+    public int distanceFromHome(Colour colour, Direction direction, int trackIndex, int ccwApproachCrossings) {
+        int approach = approachIndex(colour);
+        if (direction == Direction.CLOCKWISE) {
+            return Math.floorMod(approach - trackIndex, TRACK_SIZE) + APPROACH_TO_HOME;
+        }
+        int stepsToApproach = Math.floorMod(trackIndex - approach, TRACK_SIZE);
+        if (ccwApproachCrossings >= 1) {
+            return stepsToApproach + APPROACH_TO_HOME;
+        }
+        return stepsToApproach + TRACK_SIZE + APPROACH_TO_HOME;
     }
 }

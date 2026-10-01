@@ -7,6 +7,8 @@ import ludot.domain.Position;
 import ludot.events.PieceBlocked;
 import ludot.events.PiecePartiallyMoved;
 
+import java.util.List;
+
 /**
  * A-16: a piece obstructed by an opponent block moves only as far as the cell
  * before it, and only when the player has no other legal full move. Per
@@ -25,7 +27,13 @@ public record PartialMove(
         Direction direction,
         boolean capturesSomething,
         boolean formsBlock,
+        boolean breaksBlock,
         boolean crossesApproachWithoutEntering) implements Move {
+
+    @Override
+    public List<PieceId> pieceIds() {
+        return List.of(pieceId);
+    }
 
     @Override
     public boolean landsOnMystery() {
@@ -47,7 +55,8 @@ public record PartialMove(
             return new MoveResult(false);
         }
         // A-46: the movement fact is published before the capture fact.
-        LandingResult landing = context.landingHandler().resolveLanding(pieceId, destination, board, context.events());
+        LandingResult landing =
+                context.landingHandler().resolveLanding(List.of(pieceId), destination, board, context.events());
         return new MoveResult(landing.captured());
     }
 }

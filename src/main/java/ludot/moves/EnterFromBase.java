@@ -8,13 +8,25 @@ import ludot.domain.Position;
 import ludot.events.PieceDirectionAssigned;
 import ludot.events.PieceEnteredX;
 
+import java.util.List;
+
 /** Rule 2: a piece moves from base to its colour's starting square X. */
 public record EnterFromBase(PieceId pieceId, Position destination, boolean capturesSomething, boolean formsBlock)
         implements Move {
 
     @Override
+    public List<PieceId> pieceIds() {
+        return List.of(pieceId);
+    }
+
+    @Override
     public Position origin() {
         return new InBase();
+    }
+
+    @Override
+    public boolean breaksBlock() {
+        return false; // entering from base never leaves a block behind
     }
 
     @Override
@@ -38,7 +50,8 @@ public record EnterFromBase(PieceId pieceId, Position destination, boolean captu
             return new MoveResult(false);
         }
         // A-46: the "moved to the starting point" message is published before the capture message.
-        LandingResult landing = context.landingHandler().resolveLanding(pieceId, destination, board, context.events());
+        LandingResult landing =
+                context.landingHandler().resolveLanding(List.of(pieceId), destination, board, context.events());
         return new MoveResult(landing.captured());
     }
 }

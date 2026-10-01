@@ -6,6 +6,8 @@ import ludot.domain.PieceId;
 import ludot.domain.Position;
 import ludot.events.PieceMoved;
 
+import java.util.List;
+
 /** Rule 1: a piece already on the standard path (or home straight) moves by the roll value. */
 public record StepMove(
         PieceId pieceId,
@@ -15,7 +17,13 @@ public record StepMove(
         Direction direction,
         boolean capturesSomething,
         boolean formsBlock,
+        boolean breaksBlock,
         boolean crossesApproachWithoutEntering) implements Move {
+
+    @Override
+    public List<PieceId> pieceIds() {
+        return List.of(pieceId);
+    }
 
     @Override
     public boolean landsOnMystery() {
@@ -35,7 +43,8 @@ public record StepMove(
             return new MoveResult(false);
         }
         // A-46: the move message is published before the capture message.
-        LandingResult landing = context.landingHandler().resolveLanding(pieceId, destination, board, context.events());
+        LandingResult landing =
+                context.landingHandler().resolveLanding(List.of(pieceId), destination, board, context.events());
         return new MoveResult(landing.captured());
     }
 }

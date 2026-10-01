@@ -20,6 +20,7 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -151,7 +152,7 @@ class EnterFromBaseTest {
     void a46_capturingEntryPublishesThenDelegates() {
         PieceId id = new PieceId(Colour.RED, 1);
         Position destination = new OnTrack(RED_X);
-        when(landingHandler.resolveLanding(id, destination, board, events))
+        when(landingHandler.resolveLanding(List.of(id), destination, board, events))
                 .thenReturn(new LandingResult(true, Optional.of(new PieceId(Colour.GREEN, 1))));
         when(coin.toss()).thenReturn(Direction.CLOCKWISE);
         Move move = new EnterFromBase(id, destination, true, false);
@@ -161,6 +162,6 @@ class EnterFromBaseTest {
         assertEquals(new MoveResult(true), result);
         InOrder order = inOrder(listener, landingHandler);
         order.verify(listener).onEvent(any(PieceEnteredX.class));
-        order.verify(landingHandler).resolveLanding(id, destination, board, events);
+        order.verify(landingHandler).resolveLanding(List.of(id), destination, board, events);
     }
 }

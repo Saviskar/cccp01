@@ -10,6 +10,7 @@ import ludot.domain.OnTrack;
 import ludot.domain.PieceId;
 import ludot.events.EventBus;
 import ludot.events.PieceBlocked;
+import ludot.moves.BlockMove;
 import ludot.moves.Move;
 import ludot.moves.MoveContext;
 import ludot.moves.PartialMove;
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -59,7 +61,7 @@ class MoveGeneratorTest {
 
         assertEquals(1, moves.size());
         Move move = moves.get(0);
-        assertEquals(id, move.pieceId());
+        assertEquals(List.of(id), move.pieceIds());
         assertEquals(new OnTrack(14), move.destination());
     }
 
@@ -75,7 +77,7 @@ class MoveGeneratorTest {
 
         List<Move> moves = legalMovesOnly(Colour.RED, 4);
 
-        Move move = moves.stream().filter(m -> m.pieceId().equals(mover)).findFirst().orElseThrow();
+        Move move = moves.stream().filter(m -> m.pieceIds().contains(mover)).findFirst().orElseThrow();
         assertEquals(new OnTrack(14), move.destination());
         assertTrue(move.formsBlock());
         assertFalse(move.capturesSomething());
@@ -93,7 +95,7 @@ class MoveGeneratorTest {
 
         List<Move> moves = legalMovesOnly(Colour.RED, 1);
 
-        Move move = moves.stream().filter(m -> m.pieceId().equals(mover)).findFirst().orElseThrow();
+        Move move = moves.stream().filter(m -> m.pieceIds().contains(mover)).findFirst().orElseThrow();
         assertEquals(new InHomeStraight(2), move.destination());
         assertFalse(move.formsBlock());
     }
@@ -148,7 +150,7 @@ class MoveGeneratorTest {
         List<Move> moves = legalMovesOnly(Colour.RED, 6);
 
         assertEquals(4, moves.size());
-        List<Move> baseEntries = moves.stream().filter(m -> !m.pieceId().equals(onX)).toList();
+        List<Move> baseEntries = moves.stream().filter(m -> !m.pieceIds().contains(onX)).toList();
         assertEquals(3, baseEntries.size());
         assertTrue(baseEntries.stream().allMatch(Move::formsBlock));
         assertTrue(baseEntries.stream().noneMatch(Move::capturesSomething));
@@ -187,7 +189,7 @@ class MoveGeneratorTest {
 
         List<Move> moves = legalMovesOnly(Colour.RED, 4);
 
-        Move move = moves.stream().filter(m -> m.pieceId().equals(mover)).findFirst().orElseThrow();
+        Move move = moves.stream().filter(m -> m.pieceIds().contains(mover)).findFirst().orElseThrow();
         assertEquals(new OnTrack(14), move.destination());
         assertFalse(move.capturesSomething());
 
@@ -207,7 +209,7 @@ class MoveGeneratorTest {
 
         List<Move> moves = legalMovesOnly(Colour.RED, 6);
 
-        assertTrue(moves.stream().noneMatch(m -> m.pieceId().equals(id)));
+        assertTrue(moves.stream().noneMatch(m -> m.pieceIds().contains(id)));
     }
 
     @Test
@@ -220,7 +222,7 @@ class MoveGeneratorTest {
 
         List<Move> moves = legalMovesOnly(Colour.RED, 1);
 
-        StepMove move = (StepMove) moves.stream().filter(m -> m.pieceId().equals(id)).findFirst().orElseThrow();
+        StepMove move = (StepMove) moves.stream().filter(m -> m.pieceIds().contains(id)).findFirst().orElseThrow();
         assertEquals(new OnTrack(topology.step(approach, Direction.COUNTERCLOCKWISE)), move.destination());
         assertTrue(move.crossesApproachWithoutEntering());
     }
@@ -236,7 +238,7 @@ class MoveGeneratorTest {
 
         List<Move> moves = legalMovesOnly(Colour.RED, 1);
 
-        StepMove move = (StepMove) moves.stream().filter(m -> m.pieceId().equals(id)).findFirst().orElseThrow();
+        StepMove move = (StepMove) moves.stream().filter(m -> m.pieceIds().contains(id)).findFirst().orElseThrow();
         assertEquals(new InHomeStraight(0), move.destination());
         assertFalse(move.crossesApproachWithoutEntering());
     }
@@ -310,7 +312,7 @@ class MoveGeneratorTest {
         MoveGenerationResult result = generator.legalMoves(Colour.GREEN, 6, board, topology);
 
         assertEquals(1, result.legalMoves().size());
-        assertEquals(free, result.legalMoves().get(0).pieceId());
+        assertEquals(List.of(free), result.legalMoves().get(0).pieceIds());
         assertTrue(result.deadEndObstructions().isEmpty());
     }
 
@@ -358,7 +360,7 @@ class MoveGeneratorTest {
         MoveGenerationResult result = generator.legalMoves(Colour.GREEN, 6, board, topology);
 
         assertEquals(1, result.legalMoves().size());
-        assertEquals(partialMover, result.legalMoves().get(0).pieceId());
+        assertEquals(List.of(partialMover), result.legalMoves().get(0).pieceIds());
         assertEquals(1, result.deadEndObstructions().size());
         assertEquals(deadEndMover, result.deadEndObstructions().get(0).pieceId());
     }
@@ -381,5 +383,325 @@ class MoveGeneratorTest {
         assertEquals(1, result.legalMoves().size());
         PartialMove move = assertInstanceOf(PartialMove.class, result.legalMoves().get(0));
         assertTrue(move.capturesSomething());
+    }
+
+    private Optional<BlockMove> onlyBlockMove(List<Move> moves) {
+        return moves.stream().filter(m -> m instanceof BlockMove).map(m -> (BlockMove) m).findFirst();
+    }
+
+    @Test
+    @DisplayName("T-4/A-17: a block moves floor(roll / block size) cells")
+    void t4_a17_blockMoveUsesFloorDivisionOfRollByBlockSize() {
+        PieceId member1 = new PieceId(Colour.RED, 1);
+        PieceId member2 = new PieceId(Colour.RED, 2);
+        board.moveTo(member1, new OnTrack(10));
+        board.assignDirection(member1, Direction.CLOCKWISE);
+        board.moveTo(member2, new OnTrack(10));
+        board.assignDirection(member2, Direction.CLOCKWISE);
+
+        List<Move> moves = legalMovesOnly(Colour.RED, 5);
+
+        BlockMove move = onlyBlockMove(moves).orElseThrow();
+        assertEquals(List.of(member1, member2), move.pieceIds());
+        assertEquals(new OnTrack(10), move.origin());
+        assertEquals(new OnTrack(12), move.destination());
+        assertEquals(2, move.cellsPerPiece());
+    }
+
+    @Test
+    @DisplayName("A-17: a zero-cell block move (floor(roll / size) == 0) is not generated")
+    void a17_blockMoveIllegalWhenFloorDivisionIsZero() {
+        PieceId member1 = new PieceId(Colour.RED, 1);
+        PieceId member2 = new PieceId(Colour.RED, 2);
+        PieceId member3 = new PieceId(Colour.RED, 3);
+        board.moveTo(member1, new OnTrack(10));
+        board.assignDirection(member1, Direction.CLOCKWISE);
+        board.moveTo(member2, new OnTrack(10));
+        board.assignDirection(member2, Direction.CLOCKWISE);
+        board.moveTo(member3, new OnTrack(10));
+        board.assignDirection(member3, Direction.CLOCKWISE);
+
+        List<Move> moves = legalMovesOnly(Colour.RED, 2);
+
+        assertTrue(onlyBlockMove(moves).isEmpty());
+    }
+
+    @Test
+    @DisplayName("A-17: the block moves in the members' shared direction when they agree")
+    void a17_blockDirectionSharedWhenMembersAgree() {
+        PieceId member1 = new PieceId(Colour.RED, 1);
+        PieceId member2 = new PieceId(Colour.RED, 2);
+        board.moveTo(member1, new OnTrack(10));
+        board.assignDirection(member1, Direction.CLOCKWISE);
+        board.moveTo(member2, new OnTrack(10));
+        board.assignDirection(member2, Direction.CLOCKWISE);
+
+        List<Move> moves = legalMovesOnly(Colour.RED, 5);
+
+        BlockMove move = onlyBlockMove(moves).orElseThrow();
+        assertEquals(Direction.CLOCKWISE, move.direction());
+    }
+
+    @Test
+    @DisplayName("A-17: when members disagree, the block moves in the farthest-from-home member's direction")
+    void a17_blockDirectionFarthestFromHomeWhenMembersDisagree() {
+        PieceId clockwiseMember = new PieceId(Colour.RED, 1);
+        PieceId counterclockwiseMember = new PieceId(Colour.RED, 2);
+        board.moveTo(clockwiseMember, new OnTrack(20));
+        board.assignDirection(clockwiseMember, Direction.CLOCKWISE);
+        board.moveTo(counterclockwiseMember, new OnTrack(20));
+        board.assignDirection(counterclockwiseMember, Direction.COUNTERCLOCKWISE);
+        board.recordApproachCrossing(counterclockwiseMember); // past its first crossing (A-08)
+
+        List<Move> moves = legalMovesOnly(Colour.RED, 4);
+
+        // Clockwise distance from 20: 10; counterclockwise distance from 20 (past first crossing): 54.
+        BlockMove move = onlyBlockMove(moves).orElseThrow();
+        assertEquals(Direction.COUNTERCLOCKWISE, move.direction());
+        assertEquals(new OnTrack(18), move.destination());
+    }
+
+    @Test
+    @DisplayName("A-17: a tied distance between differing directions breaks to clockwise")
+    void a17_blockDirectionTiesBreakToClockwise() {
+        PieceId clockwiseMember = new PieceId(Colour.RED, 1);
+        PieceId counterclockwiseMember = new PieceId(Colour.RED, 2);
+        board.moveTo(clockwiseMember, new OnTrack(50));
+        board.assignDirection(clockwiseMember, Direction.CLOCKWISE);
+        board.moveTo(counterclockwiseMember, new OnTrack(50));
+        board.assignDirection(counterclockwiseMember, Direction.COUNTERCLOCKWISE);
+        board.recordApproachCrossing(counterclockwiseMember); // past its first crossing (A-08)
+
+        List<Move> moves = legalMovesOnly(Colour.RED, 4);
+
+        // Both directions are exactly 32 cells from home (26 to Approach + 6); the tie goes to clockwise.
+        BlockMove move = onlyBlockMove(moves).orElseThrow();
+        assertEquals(Direction.CLOCKWISE, move.direction());
+        assertEquals(new OnTrack(0), move.destination());
+    }
+
+    @Test
+    @DisplayName("A-18: a block move never enters the home straight, even when it passes the Approach cell")
+    void a18_blockMoveNeverEntersHomeStraight() {
+        PieceId member1 = new PieceId(Colour.RED, 1);
+        PieceId member2 = new PieceId(Colour.RED, 2);
+        board.moveTo(member1, new OnTrack(22));
+        board.assignDirection(member1, Direction.CLOCKWISE);
+        board.moveTo(member2, new OnTrack(22));
+        board.assignDirection(member2, Direction.CLOCKWISE);
+
+        // Red's Approach is 24; floor(8/2)=4 cells from 22 walks 22->23->24->25->26, past Approach.
+        List<Move> moves = legalMovesOnly(Colour.RED, 8);
+
+        BlockMove move = onlyBlockMove(moves).orElseThrow();
+        assertEquals(new OnTrack(26), move.destination());
+    }
+
+    @Test
+    @DisplayName("A-19: a block move landing on a single opponent flags capturesSomething")
+    void a19_blockMoveCapturesSingleOpponentAndMarksCapturesSomething() {
+        PieceId member1 = new PieceId(Colour.RED, 1);
+        PieceId member2 = new PieceId(Colour.RED, 2);
+        board.moveTo(member1, new OnTrack(10));
+        board.assignDirection(member1, Direction.CLOCKWISE);
+        board.moveTo(member2, new OnTrack(10));
+        board.assignDirection(member2, Direction.CLOCKWISE);
+        board.moveTo(new PieceId(Colour.GREEN, 1), new OnTrack(12));
+
+        List<Move> moves = legalMovesOnly(Colour.RED, 4);
+
+        BlockMove move = onlyBlockMove(moves).orElseThrow();
+        assertTrue(move.capturesSomething());
+    }
+
+    @Test
+    @DisplayName("A-50: a block move is illegal when an opponent block occupies a cell on its path")
+    void a50_blockMoveIllegalWhenOpponentBlockOnPath() {
+        PieceId member1 = new PieceId(Colour.RED, 1);
+        PieceId member2 = new PieceId(Colour.RED, 2);
+        board.moveTo(member1, new OnTrack(10));
+        board.assignDirection(member1, Direction.CLOCKWISE);
+        board.moveTo(member2, new OnTrack(10));
+        board.assignDirection(member2, Direction.CLOCKWISE);
+        board.moveTo(new PieceId(Colour.GREEN, 1), new OnTrack(12));
+        board.moveTo(new PieceId(Colour.GREEN, 2), new OnTrack(12));
+
+        // floor(6/2)=3 cells from 10 walks 10->11->12->13, passing the opponent block at 12.
+        MoveGenerationResult result = generator.legalMoves(Colour.RED, 6, board, topology);
+
+        assertTrue(onlyBlockMove(result.legalMoves()).isEmpty());
+    }
+
+    @Test
+    @DisplayName("A-50: a block move is illegal when an opponent block occupies the landing cell")
+    void a50_blockMoveIllegalWhenOpponentBlockOnLandingCell() {
+        PieceId member1 = new PieceId(Colour.RED, 1);
+        PieceId member2 = new PieceId(Colour.RED, 2);
+        board.moveTo(member1, new OnTrack(10));
+        board.assignDirection(member1, Direction.CLOCKWISE);
+        board.moveTo(member2, new OnTrack(10));
+        board.assignDirection(member2, Direction.CLOCKWISE);
+        board.moveTo(new PieceId(Colour.GREEN, 1), new OnTrack(12));
+        board.moveTo(new PieceId(Colour.GREEN, 2), new OnTrack(12));
+
+        List<Move> moves = legalMovesOnly(Colour.RED, 4);
+
+        assertTrue(onlyBlockMove(moves).isEmpty());
+    }
+
+    @Test
+    @DisplayName("A-50: a block move passes single pieces of either colour and own-colour blocks")
+    void a50_blockMoveLegalPastSinglePiecesAndOwnBlocks() {
+        PieceId member1 = new PieceId(Colour.RED, 1);
+        PieceId member2 = new PieceId(Colour.RED, 2);
+        PieceId ownBlockMember1 = new PieceId(Colour.RED, 3);
+        PieceId ownBlockMember2 = new PieceId(Colour.RED, 4);
+        board.moveTo(member1, new OnTrack(10));
+        board.assignDirection(member1, Direction.CLOCKWISE);
+        board.moveTo(member2, new OnTrack(10));
+        board.assignDirection(member2, Direction.CLOCKWISE);
+        board.moveTo(new PieceId(Colour.GREEN, 1), new OnTrack(11));
+        board.moveTo(ownBlockMember1, new OnTrack(12));
+        board.assignDirection(ownBlockMember1, Direction.CLOCKWISE);
+        board.moveTo(ownBlockMember2, new OnTrack(12));
+        board.assignDirection(ownBlockMember2, Direction.CLOCKWISE);
+
+        // floor(6/2)=3 cells from 10 walks 10->11->12->13, passing the single opponent at 11
+        // and the own-colour block at 12.
+        List<Move> moves = legalMovesOnly(Colour.RED, 6);
+
+        BlockMove move = onlyBlockMove(moves).orElseThrow();
+        assertEquals(new OnTrack(13), move.destination());
+        assertFalse(move.capturesSomething());
+    }
+
+    @Test
+    @DisplayName("A-08: a counterclockwise block move past Approach records a crossing for every member")
+    void a08_counterclockwiseBlockMovePastApproachRecordsCrossingForEveryMember() {
+        PieceId member1 = new PieceId(Colour.RED, 1);
+        PieceId member2 = new PieceId(Colour.RED, 2);
+        board.moveTo(member1, new OnTrack(26));
+        board.assignDirection(member1, Direction.COUNTERCLOCKWISE);
+        board.moveTo(member2, new OnTrack(26));
+        board.assignDirection(member2, Direction.COUNTERCLOCKWISE);
+
+        // floor(6/2)=3 cells counterclockwise from 26 walks 26->25->24->23, leaving Approach (24).
+        List<Move> moves = legalMovesOnly(Colour.RED, 6);
+        BlockMove move = onlyBlockMove(moves).orElseThrow();
+        assertEquals(new OnTrack(23), move.destination());
+        assertTrue(move.crossesApproachWithoutEntering());
+
+        Coin unusedCoin = () -> Direction.CLOCKWISE;
+        move.execute(new MoveContext(board, new EventBus(), new LandingResolver(), unusedCoin));
+
+        assertEquals(1, board.piece(member1).ccwApproachCrossings());
+        assertEquals(1, board.piece(member2).ccwApproachCrossings());
+    }
+
+    @Test
+    @DisplayName("A-08: a counterclockwise block move landing exactly on Approach records no crossing")
+    void a08_counterclockwiseBlockLandingExactlyOnApproachRecordsNoCrossing() {
+        PieceId member1 = new PieceId(Colour.RED, 1);
+        PieceId member2 = new PieceId(Colour.RED, 2);
+        board.moveTo(member1, new OnTrack(26));
+        board.assignDirection(member1, Direction.COUNTERCLOCKWISE);
+        board.moveTo(member2, new OnTrack(26));
+        board.assignDirection(member2, Direction.COUNTERCLOCKWISE);
+
+        // floor(4/2)=2 cells counterclockwise from 26 walks 26->25->24, landing exactly on Approach.
+        List<Move> moves = legalMovesOnly(Colour.RED, 4);
+        BlockMove move = onlyBlockMove(moves).orElseThrow();
+        assertEquals(new OnTrack(24), move.destination());
+        assertFalse(move.crossesApproachWithoutEntering());
+
+        Coin unusedCoin = () -> Direction.CLOCKWISE;
+        move.execute(new MoveContext(board, new EventBus(), new LandingResolver(), unusedCoin));
+
+        assertEquals(0, board.piece(member1).ccwApproachCrossings());
+        assertEquals(0, board.piece(member2).ccwApproachCrossings());
+    }
+
+    @Test
+    @DisplayName("breaksBlock is true for an individual move generated for a piece currently in a block")
+    void breaksBlockTrueWhenPieceLeavesOwnBlock() {
+        PieceId member1 = new PieceId(Colour.RED, 1);
+        PieceId member2 = new PieceId(Colour.RED, 2);
+        board.moveTo(member1, new OnTrack(10));
+        board.assignDirection(member1, Direction.CLOCKWISE);
+        board.moveTo(member2, new OnTrack(10));
+        board.assignDirection(member2, Direction.CLOCKWISE);
+
+        List<Move> moves = legalMovesOnly(Colour.RED, 3);
+
+        List<StepMove> stepMoves = moves.stream().filter(m -> m instanceof StepMove).map(m -> (StepMove) m).toList();
+        assertEquals(2, stepMoves.size());
+        assertTrue(stepMoves.stream().allMatch(StepMove::breaksBlock));
+    }
+
+    @Test
+    @DisplayName("breaksBlock is false for an individual move generated for a piece not currently in a block")
+    void breaksBlockFalseOtherwise() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new OnTrack(10));
+        board.assignDirection(id, Direction.CLOCKWISE);
+
+        List<Move> moves = legalMovesOnly(Colour.RED, 3);
+
+        StepMove move = assertInstanceOf(StepMove.class, moves.get(0));
+        assertFalse(move.breaksBlock());
+    }
+
+    @Test
+    @DisplayName("T-5/A-21: breaking off from a block uses the piece's own original direction")
+    void t5_a21_breakingOffFromBlockUsesPiecesOriginalDirection() {
+        PieceId clockwiseMember = new PieceId(Colour.RED, 1);
+        PieceId counterclockwiseMember = new PieceId(Colour.RED, 2);
+        board.moveTo(clockwiseMember, new OnTrack(10));
+        board.assignDirection(clockwiseMember, Direction.CLOCKWISE);
+        board.moveTo(counterclockwiseMember, new OnTrack(10));
+        board.assignDirection(counterclockwiseMember, Direction.COUNTERCLOCKWISE);
+
+        List<Move> moves = legalMovesOnly(Colour.RED, 3);
+
+        StepMove clockwiseMove = moves.stream()
+                .filter(m -> m instanceof StepMove && m.pieceIds().contains(clockwiseMember))
+                .map(m -> (StepMove) m).findFirst().orElseThrow();
+        assertEquals(Direction.CLOCKWISE, clockwiseMove.direction());
+        assertEquals(new OnTrack(13), clockwiseMove.destination());
+
+        StepMove counterclockwiseMove = moves.stream()
+                .filter(m -> m instanceof StepMove && m.pieceIds().contains(counterclockwiseMember))
+                .map(m -> (StepMove) m).findFirst().orElseThrow();
+        assertEquals(Direction.COUNTERCLOCKWISE, counterclockwiseMove.direction());
+        assertEquals(new OnTrack(7), counterclockwiseMove.destination());
+    }
+
+    @Test
+    @DisplayName("T-5/A-21: breaksBlock is true on a partial move generated from a block origin")
+    void t5_a21_breaksBlockTrueOnPartialMoveFromBlockOrigin() {
+        PieceId member1 = new PieceId(Colour.RED, 1);
+        PieceId member2 = new PieceId(Colour.RED, 2);
+        board.moveTo(new PieceId(Colour.RED, 3), new AtHome());
+        board.moveTo(new PieceId(Colour.RED, 4), new AtHome());
+        board.moveTo(member1, new OnTrack(10));
+        board.assignDirection(member1, Direction.CLOCKWISE);
+        board.moveTo(member2, new OnTrack(10));
+        board.assignDirection(member2, Direction.CLOCKWISE);
+        board.moveTo(new PieceId(Colour.BLUE, 1), new OnTrack(12));
+        board.moveTo(new PieceId(Colour.BLUE, 2), new OnTrack(12));
+
+        // floor(6/2)=3 cells from 10 walks 10->11->12->13, so the block move is obstructed by A-50
+        // and never generated. Each individual 6-cell walk is also obstructed at 12, stopping at 11
+        // (cellsWalked=1), so both members fall back to a partial move.
+        List<Move> moves = legalMovesOnly(Colour.RED, 6);
+
+        assertEquals(2, moves.size());
+        assertTrue(moves.stream().allMatch(m -> m instanceof PartialMove));
+        PartialMove move1 = (PartialMove) moves.stream().filter(m -> m.pieceIds().contains(member1)).findFirst().orElseThrow();
+        PartialMove move2 = (PartialMove) moves.stream().filter(m -> m.pieceIds().contains(member2)).findFirst().orElseThrow();
+        assertEquals(new OnTrack(11), move1.destination());
+        assertEquals(1, move1.cellsMoved());
+        assertTrue(move1.breaksBlock());
+        assertTrue(move2.breaksBlock());
     }
 }
