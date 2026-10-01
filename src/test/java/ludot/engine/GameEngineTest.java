@@ -14,6 +14,7 @@ import ludot.events.RoundOrderAnnounced;
 import ludot.players.FirstLegalMoveStrategy;
 import ludot.players.PlayerStrategy;
 import ludot.random.Dice;
+import ludot.random.RandomPicker;
 import ludot.rules.BlockBreakPlanner;
 import ludot.rules.LandingResolver;
 import ludot.rules.MoveGenerator;
@@ -45,6 +46,9 @@ class GameEngineTest {
     @Mock
     private GameEventListener listener;
 
+    @Mock
+    private RandomPicker randomPicker;
+
     private GameEngine engine;
     private BoardState board;
 
@@ -55,10 +59,12 @@ class GameEngineTest {
         events.subscribe(listener);
         // Plumbing only: no GameEngineTest scenario reaches EnterFromBase (all trailing roll
         // values are non-six), so a lambda avoids an unused Mockito stub tripping strict-stubs.
+        // Likewise, no piece ever reaches the standard track, so the mystery-cell timer never
+        // starts and neither handler below is ever actually invoked.
         TurnController turnController = new TurnController(
                 dice, () -> Direction.CLOCKWISE, new MoveGenerator(new MovementCalculator()), topology, events,
-                new LandingResolver(), new BlockBreakPlanner());
-        RoundManager roundManager = new RoundManager(turnController, events);
+                new LandingResolver(), new BlockBreakPlanner(), (pieceId, b, e) -> false);
+        RoundManager roundManager = new RoundManager(turnController, events, randomPicker);
         Map<Colour, PlayerStrategy> strategies = new EnumMap<>(Colour.class);
         for (Colour colour : Colour.values()) {
             strategies.put(colour, new FirstLegalMoveStrategy());

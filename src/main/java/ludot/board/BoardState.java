@@ -9,6 +9,7 @@ import ludot.domain.OnTrack;
 import ludot.domain.PieceEffect;
 import ludot.domain.PieceId;
 import ludot.domain.Position;
+import ludot.random.RandomPicker;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -31,6 +32,7 @@ public final class BoardState implements GameView {
     private final Map<PieceId, Piece> pieces = new LinkedHashMap<>();
     private final List<List<PieceId>> track = new ArrayList<>(BoardTopology.TRACK_SIZE);
     private final Map<Colour, List<List<PieceId>>> homeStraight = new EnumMap<>(Colour.class);
+    private final MysteryCell mysteryCell = new MysteryCell();
 
     public BoardState() {
         for (int i = 0; i < BoardTopology.TRACK_SIZE; i++) {
@@ -98,6 +100,32 @@ public final class BoardState implements GameView {
             }
         }
         return cells;
+    }
+
+    // A-28: whether any piece currently occupies a standard-track cell, used to start the
+    // mystery cell's spawn timer.
+    public boolean anyPieceOnTrack() {
+        return track.stream().anyMatch(occupants -> !occupants.isEmpty());
+    }
+
+    public Optional<Integer> mysteryCellLocation() {
+        return mysteryCell.location();
+    }
+
+    // A-28: advances the mystery cell's timer by one round-end, picking a spawn/respawn
+    // cell via the injected picker when one is due.
+    public Optional<MysteryCellTick> tickMysteryCell(RandomPicker picker) {
+        return mysteryCell.onRoundEnd(anyPieceOnTrack(), emptyTrackCells(), picker);
+    }
+
+    private List<Integer> emptyTrackCells() {
+        List<Integer> empty = new ArrayList<>();
+        for (int i = 0; i < BoardTopology.TRACK_SIZE; i++) {
+            if (track.get(i).isEmpty()) {
+                empty.add(i);
+            }
+        }
+        return empty;
     }
 
     public int countInBase(Colour colour) {

@@ -11,9 +11,12 @@ import ludot.events.DiceRolled;
 import ludot.events.EventBus;
 import ludot.events.GameEvent;
 import ludot.events.GameEventListener;
+import ludot.events.MysteryCellStatusReported;
+import ludot.events.MysterySpawned;
 import ludot.events.RoundStatusReported;
 import ludot.players.FirstLegalMoveStrategy;
 import ludot.random.Dice;
+import ludot.random.RandomPicker;
 import ludot.rules.BlockBreakPlanner;
 import ludot.rules.LandingResolver;
 import ludot.rules.MoveGenerator;
@@ -30,6 +33,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -45,6 +50,9 @@ class RoundManagerTest {
     @Mock
     private GameEventListener listener;
 
+    @Mock
+    private RandomPicker randomPicker;
+
     private BoardState board;
     private EventBus events;
     private Standings standings;
@@ -58,11 +66,12 @@ class RoundManagerTest {
         standings = new Standings();
         BoardTopology topology = new BoardTopology();
         // Plumbing only: neither RoundManagerTest scenario ever rolls a six, so a lambda avoids
-        // an unused Mockito stub tripping strict-stubs.
+        // an unused Mockito stub tripping strict-stubs. Likewise, no scenario here reaches a
+        // mystery-cell trigger, so this handler is never called.
         TurnController turnController = new TurnController(
                 dice, () -> Direction.CLOCKWISE, new MoveGenerator(new MovementCalculator()), topology, events,
-                new LandingResolver(), new BlockBreakPlanner());
-        roundManager = new RoundManager(turnController, events);
+                new LandingResolver(), new BlockBreakPlanner(), (pieceId, b, e) -> false);
+        roundManager = new RoundManager(turnController, events, randomPicker);
     }
 
     private List<Player> players() {
@@ -107,5 +116,66 @@ class RoundManagerTest {
                 .map(event -> ((RoundStatusReported) event).colour())
                 .toList();
         assertEquals(List.of(Colour.RED, Colour.GREEN, Colour.YELLOW, Colour.BLUE), reported);
+    }
+
+    @Test
+    @DisplayName("no mystery-cell events are published while no piece has reached the standard track")
+    void noMysteryEventsPublishedWithoutAnyPieceOnTrack() {
+        when(dice.roll()).thenReturn(3); // non-six, nobody leaves base
+
+        roundManager.playRound(players(), board, standings, board);
+
+        ArgumentCaptor<GameEvent> captor = ArgumentCaptor.forClass(GameEvent.class);
+        verify(listener, atLeastOnce()).onEvent(captor.capture());
+        assertTrue(captor.getAllValues().stream().noneMatch(MysterySpawned.class::isInstance));
+        assertTrue(captor.getAllValues().stream().noneMatch(MysteryCellStatusReported.class::isInstance));
+    }
+
+    @Test
+    @DisplayName("A-28: the mystery cell spawns and is reported once the timing window elapses")
+    void a28_mysteryCellSpawnsAndIsReportedAfterTimingWindow() {
+        when(dice.roll()).thenReturn(3); // non-six, nobody moves once on the track either
+        when(randomPicker.pick(anyList())).thenReturn(7);
+        PieceId redOnTrack = new PieceId(Colour.RED, 1);
+        board.moveTo(redOnTrack, new OnTrack(5));
+        board.assignDirection(redOnTrack, Direction.CLOCKWISE);
+
+        roundManager.playRound(players(), board, standings, board); // starts the A-28 timer
+        roundManager.playRound(players(), board, standings, board); // one round-end to go
+        roundManager.playRound(players(), board, standings, board); // spawns now
+
+        ArgumentCaptor<GameEvent> captor = ArgumentCaptor.forClass(GameEvent.class);
+        verify(listener, atLeastOnce()).onEvent(captor.capture());
+        assertEquals(List.of(new MysterySpawned(7)),
+                captor.getAllValues().stream().filter(MysterySpawned.class::isInstance).toList());
+        assertEquals(new MysteryCellStatusReported(7, 4),
+                captor.getAllValues().stream()
+                        .filter(MysteryCellStatusReported.class::isInstance)
+                        .reduce((first, second) -> second) // the last one published
+                        .orElseThrow());
+    }
+
+    @Test
+    @DisplayName("A-28: the round after spawning reports one fewer round remaining, with no second spawn")
+    void a28_nextRoundReportsOneFewerRoundRemaining() {
+        when(dice.roll()).thenReturn(3);
+        when(randomPicker.pick(anyList())).thenReturn(7);
+        PieceId redOnTrack = new PieceId(Colour.RED, 1);
+        board.moveTo(redOnTrack, new OnTrack(5));
+        board.assignDirection(redOnTrack, Direction.CLOCKWISE);
+        roundManager.playRound(players(), board, standings, board);
+        roundManager.playRound(players(), board, standings, board);
+        roundManager.playRound(players(), board, standings, board); // spawns, 4 rounds remaining
+
+        roundManager.playRound(players(), board, standings, board); // 3 rounds remaining
+
+        ArgumentCaptor<GameEvent> captor = ArgumentCaptor.forClass(GameEvent.class);
+        verify(listener, atLeastOnce()).onEvent(captor.capture());
+        assertEquals(1, captor.getAllValues().stream().filter(MysterySpawned.class::isInstance).count());
+        assertEquals(new MysteryCellStatusReported(7, 3),
+                captor.getAllValues().stream()
+                        .filter(MysteryCellStatusReported.class::isInstance)
+                        .reduce((first, second) -> second)
+                        .orElseThrow());
     }
 }

@@ -28,16 +28,12 @@ public record PartialMove(
         boolean capturesSomething,
         boolean formsBlock,
         boolean breaksBlock,
-        boolean crossesApproachWithoutEntering) implements Move {
+        boolean crossesApproachWithoutEntering,
+        boolean landsOnMystery) implements Move {
 
     @Override
     public List<PieceId> pieceIds() {
         return List.of(pieceId);
-    }
-
-    @Override
-    public boolean landsOnMystery() {
-        return false;
     }
 
     @Override
@@ -51,12 +47,20 @@ public record PartialMove(
         }
         context.events().publish(new PiecePartiallyMoved(pieceId, origin, destination, cellsMoved, direction));
 
-        if (!capturesSomething) {
-            return new MoveResult(false);
+        boolean captured = false;
+        if (capturesSomething) {
+            // A-46: the movement fact is published before the capture fact.
+            LandingResult landing =
+                    context.landingHandler().resolveLanding(List.of(pieceId), destination, board, context.events());
+            captured = landing.captured();
         }
-        // A-46: the movement fact is published before the capture fact.
-        LandingResult landing =
-                context.landingHandler().resolveLanding(List.of(pieceId), destination, board, context.events());
-        return new MoveResult(landing.captured());
+        if (landsOnMystery) {
+            // A-29: only an individual piece ending its move on the mystery cell triggers T-11. This
+            // also covers a T-6 forced-break member (A-54), since MoveGenerator.forcedMove reuses the
+            // same buildStepMove/buildPartialMove helpers as an ordinary roll.
+            boolean teleportCaptured = context.mysteryHandler().trigger(pieceId, board, context.events());
+            captured = captured || teleportCaptured;
+        }
+        return new MoveResult(captured);
     }
 }

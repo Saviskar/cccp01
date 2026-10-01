@@ -39,9 +39,9 @@ Why this matters:
 
 | Package | Contents | Depends on |
 |---|---|---|
-| `domain` | `Colour`, `Direction`, `PieceId`, `Position`, `PieceEffect` | — |
-| `board` | `BoardTopology`, `BoardState`, `MysteryCell`, `Piece`, `GameView` | `domain` |
-| `moves` | `Move` and its implementations, `LandingHandler` | `domain`, `board`, `events`, `random` |
+| `domain` | `Colour`, `Direction`, `PieceId`, `Position`, `PieceEffect`, `MysteryOutcomeKind` | — |
+| `board` | `BoardTopology`, `BoardState`, `MysteryCell`, `MysteryCellTick`, `Piece`, `GameView` | `domain`, `random` |
+| `moves` | `Move` and its implementations, `LandingHandler`, `MysteryHandler` | `domain`, `board`, `events`, `random` |
 | `rules` | `MovementCalculator`, `MoveGenerator`, `LandingResolver`, `MysteryResolver`, `MysteryOutcome` implementations | `domain`, `board`, `moves`, `random`, `events` |
 | `players` | `PlayerStrategy`, four strategies | `domain`, `moves`, `board` |
 | `engine` | `GameEngine`, `TurnController`, `RoundManager`, `Standings` | all of the above |
@@ -66,7 +66,7 @@ Dependencies point one way only, towards `domain`. `players` does **not** depend
 | `BlockBreakPlanner` | Snapshots which blocks a colour owns and how each must break (who stays, who leaves, units each) when a third consecutive six lands, before any member moves (T-6/A-22). |
 | `Move` | A command object describing one legal move, which can execute itself. |
 | `LandingResolver` | What happens when something lands on a cell: captures (Rule 6, T-2, T-8), block formation, obstruction. Shared by normal moves and teleports so the logic isn't duplicated. Implements `moves.LandingHandler`, so a `Move` can trigger landing resolution without the `moves` package depending on `rules` (dependency inversion). |
-| `MysteryResolver` | Mystery cell trigger: picks an outcome, teleports, applies Alpha/Beta/Gamma effects (T-11 to T-15). |
+| `MysteryResolver` | Mystery cell trigger: picks an outcome, teleports, resolves A-31's landing rules (T-11); applies Alpha/Beta/Gamma effects in later phases (T-12 to T-15). Implements `moves.MysteryHandler`, so a `Move` can trigger it without the `moves` package depending on `rules` — same dependency-inversion reasoning as `LandingResolver`/`LandingHandler`. |
 | `PlayerStrategy` | Selects one move from the legal list. |
 | `TurnController` | One player's turn: roll loop, six streak, T-6, bonus rolls (A-23), Beta three-3s streak (A-33). |
 | `RoundManager` | Round order, round-end ticks (effects, mystery timer), round status output, round guard (A-42). |
@@ -422,8 +422,12 @@ classDiagram
         <<interface>>
         +resolveLanding(moverIds, destination, board, events) LandingResult
     }
+    class MysteryHandler {
+        <<interface>>
+        +trigger(pieceId, board, events) bool
+    }
     class MysteryResolver {
-        +trigger(piece)
+        +trigger(pieceId, board, events) bool
     }
     class MysteryOutcome {
         <<interface>>
@@ -492,9 +496,16 @@ classDiagram
     Move ..> LandingHandler
     Move ..> Coin
     LandingResolver ..|> LandingHandler
-    Move ..> MysteryResolver
+    Move ..> MysteryHandler
+    MysteryResolver ..|> MysteryHandler
     MysteryResolver --> MysteryOutcome
     MysteryResolver --> RandomPicker
+    MysteryOutcome <|.. TeleportToAlpha
+    MysteryOutcome <|.. TeleportToBeta
+    MysteryOutcome <|.. TeleportToGamma
+    MysteryOutcome <|.. TeleportToBase
+    MysteryOutcome <|.. TeleportToX
+    MysteryOutcome <|.. TeleportToApproach
     BoardState o-- Piece
     BoardState --> MysteryCell
     Piece --> PieceEffect
@@ -566,3 +577,4 @@ during the corresponding phase's planning. A change recorded here is not a viola
 | 4c | 8.1 | The no-legal-moves branch now checks for dead-end obstructions first: if any exist, each publishes `PieceBlocked`, followed by one `ThrowIgnoredAfterBlock`, and the turn ends unconditionally — skipping the six's bonus-roll `continue` | A-48: obstruction is only reported when it decides the turn; A-47's exception: a dead-end obstruction ends the turn even on a six, unlike an ordinary no-legal-move six |
 | 4d | 3.8, 11.1 | `BlockBreakMove` dropped from the `Move` implementation list; `Move` gains a `breaksBlock(): bool` fact instead. `LandingHandler.resolveLanding`'s diagram signature widens from a single `moverId` to `moverIds` | T-5 already holds via ordinary `StepMove`/`PartialMove` generation, which already uses `Piece.originalDirection()` regardless of block membership — a dedicated break-move type would add no behaviour, so strategies instead read a precomputed fact (OCP/F2), matching `formsBlock()`. The `LandingHandler` signature widens so `LandingResolver` can credit every member of a capturing block (A-19/A-51) without duplicating capture logic inside `BlockMove` (DESIGN.md §2.3's stated sharing goal for `LandingResolver`) |
 | 4e | 2.3, 11.1 | `BlockBreakPlanner`/`BlockBreak` added in `rules`; `MoveGenerator` gains a public `forcedMove(...)` entry point and `ForcedMoveOutcome`; `BoardState` gains `blockCellsOf(Colour)`, replacing `MoveGenerator`'s private duplicate; `BlockadeBroken` added to `GameEvent` | T-6/A-22 needs the blocks a colour owns captured as a fixed snapshot before any member moves (so a leaver landing on another of the colour's own blocks mid-sequence can't be mistaken for a new/resized block), while each leaver's actual walk is still computed fresh against the live board; `forcedMove` reuses `MoveGenerator`'s existing move-building logic instead of duplicating it, and the block-cell query moves onto `BoardState` so the planner and `MoveGenerator` share one source of truth instead of two |
+| 4h | 2.2, 2.3, 11.1 | `board` gains a dependency on `random` (`BoardState.tickMysteryCell`/`MysteryCell.onRoundEnd` take a `RandomPicker` to pick the spawn cell, A-28); `MysteryOutcomeKind` added to `domain`; `MysteryCell`/`MysteryCellTick` added to `board`; `MysteryHandler` interface added to `moves` (mirroring `LandingHandler`'s existing DIP role) and implemented by `rules.MysteryResolver` | T-10/T-11 need the same move-triggers-resolver seam `LandingHandler` already provides for captures, and A-28's spawn-cell pick needs injected randomness at the point where `BoardState` already owns the track-occupancy query it depends on; `random` is a leaf package, so depending on it from `board` introduces no cycle (same reasoning as 4a's `moves → random` dependency for the coin toss) |

@@ -15,12 +15,17 @@ import ludot.moves.BlockMove;
 import ludot.moves.Move;
 import ludot.moves.MoveContext;
 import ludot.moves.MoveResult;
+import ludot.moves.MysteryHandler;
 import ludot.moves.PartialMove;
 import ludot.moves.StepMove;
 import ludot.random.Coin;
+import ludot.random.RandomPicker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 import java.util.Optional;
@@ -30,8 +35,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
 class MoveGeneratorTest {
+
+    @Mock
+    private RandomPicker picker;
 
     private final BoardTopology topology = new BoardTopology();
     private final MoveGenerator generator = new MoveGenerator(new MovementCalculator());
@@ -44,6 +55,14 @@ class MoveGeneratorTest {
 
     private List<Move> legalMovesOnly(Colour colour, int roll) {
         return generator.legalMoves(colour, roll, board, topology).legalMoves();
+    }
+
+    // A-28: spawns the mystery cell at exactly `index`, assuming a piece is already on the track.
+    private void placeMysteryCellAt(int index) {
+        when(picker.pick(anyList())).thenReturn(index);
+        board.tickMysteryCell(picker);
+        board.tickMysteryCell(picker);
+        board.tickMysteryCell(picker);
     }
 
     @Test
@@ -197,7 +216,8 @@ class MoveGeneratorTest {
         assertFalse(move.capturesSomething());
 
         Coin unusedCoin = () -> Direction.CLOCKWISE;
-        move.execute(new MoveContext(board, new EventBus(), new LandingResolver(), unusedCoin));
+        MysteryHandler unusedMysteryHandler = (pieceId, b, e) -> false;
+        move.execute(new MoveContext(board, new EventBus(), new LandingResolver(), unusedCoin, unusedMysteryHandler));
 
         assertEquals(new OnTrack(14), board.piece(mover).position());
         assertEquals(new OnTrack(11), board.piece(opponentBetween).position());
@@ -592,7 +612,8 @@ class MoveGeneratorTest {
         BlockMove move = onlyBlockMove(moves).orElseThrow();
 
         Coin unusedCoin = () -> Direction.CLOCKWISE;
-        MoveResult result = move.execute(new MoveContext(board, new EventBus(), new LandingResolver(), unusedCoin));
+        MysteryHandler unusedMysteryHandler = (pieceId, b, e) -> false;
+        MoveResult result = move.execute(new MoveContext(board, new EventBus(), new LandingResolver(), unusedCoin, unusedMysteryHandler));
 
         assertInstanceOf(InBase.class, board.piece(opponent1).position());
         assertInstanceOf(InBase.class, board.piece(opponent2).position());
@@ -627,7 +648,8 @@ class MoveGeneratorTest {
         assertTrue(move.capturesSomething());
 
         Coin unusedCoin = () -> Direction.CLOCKWISE;
-        MoveResult result = move.execute(new MoveContext(board, new EventBus(), new LandingResolver(), unusedCoin));
+        MysteryHandler unusedMysteryHandler = (pieceId, b, e) -> false;
+        MoveResult result = move.execute(new MoveContext(board, new EventBus(), new LandingResolver(), unusedCoin, unusedMysteryHandler));
 
         assertInstanceOf(InBase.class, board.piece(opponent1).position());
         assertInstanceOf(InBase.class, board.piece(opponent2).position());
@@ -681,7 +703,8 @@ class MoveGeneratorTest {
         assertTrue(move.crossesApproachWithoutEntering());
 
         Coin unusedCoin = () -> Direction.CLOCKWISE;
-        move.execute(new MoveContext(board, new EventBus(), new LandingResolver(), unusedCoin));
+        MysteryHandler unusedMysteryHandler = (pieceId, b, e) -> false;
+        move.execute(new MoveContext(board, new EventBus(), new LandingResolver(), unusedCoin, unusedMysteryHandler));
 
         assertEquals(1, board.piece(member1).ccwApproachCrossings());
         assertEquals(1, board.piece(member2).ccwApproachCrossings());
@@ -704,7 +727,8 @@ class MoveGeneratorTest {
         assertFalse(move.crossesApproachWithoutEntering());
 
         Coin unusedCoin = () -> Direction.CLOCKWISE;
-        move.execute(new MoveContext(board, new EventBus(), new LandingResolver(), unusedCoin));
+        MysteryHandler unusedMysteryHandler = (pieceId, b, e) -> false;
+        move.execute(new MoveContext(board, new EventBus(), new LandingResolver(), unusedCoin, unusedMysteryHandler));
 
         assertEquals(0, board.piece(member1).ccwApproachCrossings());
         assertEquals(0, board.piece(member2).ccwApproachCrossings());
@@ -904,5 +928,101 @@ class MoveGeneratorTest {
         StepMove move = assertInstanceOf(
                 StepMove.class, moves.stream().filter(m -> m.pieceIds().contains(id)).findFirst().orElseThrow());
         assertEquals(new InHomeStraight(0), move.destination());
+    }
+
+    @Test
+    @DisplayName("A-29: a step move landing exactly on the mystery cell has landsOnMystery true")
+    void a29_stepMoveLandingOnMysteryCellIsTrue() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new OnTrack(10));
+        board.assignDirection(id, Direction.CLOCKWISE);
+        placeMysteryCellAt(14);
+
+        List<Move> moves = legalMovesOnly(Colour.RED, 4);
+
+        StepMove move = assertInstanceOf(
+                StepMove.class, moves.stream().filter(m -> m.pieceIds().contains(id)).findFirst().orElseThrow());
+        assertEquals(new OnTrack(14), move.destination());
+        assertTrue(move.landsOnMystery());
+    }
+
+    @Test
+    @DisplayName("A-29: a step move landing elsewhere has landsOnMystery false")
+    void a29_stepMoveNotLandingOnMysteryCellIsFalse() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new OnTrack(10));
+        board.assignDirection(id, Direction.CLOCKWISE);
+        placeMysteryCellAt(20); // not the destination (14)
+
+        List<Move> moves = legalMovesOnly(Colour.RED, 4);
+
+        StepMove move = assertInstanceOf(
+                StepMove.class, moves.stream().filter(m -> m.pieceIds().contains(id)).findFirst().orElseThrow());
+        assertFalse(move.landsOnMystery());
+    }
+
+    @Test
+    @DisplayName("A-29: a step move passing over the mystery cell without landing on it does not trigger it")
+    void a29_stepMovePassingOverMysteryCellDoesNotTrigger() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new OnTrack(10));
+        board.assignDirection(id, Direction.CLOCKWISE);
+        placeMysteryCellAt(12); // on the 10->14 path, but not the landing cell
+
+        List<Move> moves = legalMovesOnly(Colour.RED, 4);
+
+        StepMove move = assertInstanceOf(
+                StepMove.class, moves.stream().filter(m -> m.pieceIds().contains(id)).findFirst().orElseThrow());
+        assertFalse(move.landsOnMystery());
+    }
+
+    @Test
+    @DisplayName("A-29: an obstructed partial move landing exactly on the mystery cell has landsOnMystery true")
+    void a29_partialMoveLandingOnMysteryCellIsTrue() {
+        PieceId mover = new PieceId(Colour.GREEN, 1);
+        PieceId blocker1 = new PieceId(Colour.RED, 1);
+        PieceId blocker2 = new PieceId(Colour.RED, 2);
+        board.moveTo(new PieceId(Colour.GREEN, 2), new AtHome());
+        board.moveTo(new PieceId(Colour.GREEN, 3), new AtHome());
+        board.moveTo(new PieceId(Colour.GREEN, 4), new AtHome());
+        board.moveTo(mover, new OnTrack(0));
+        board.assignDirection(mover, Direction.CLOCKWISE);
+        board.moveTo(blocker1, new OnTrack(4));
+        board.moveTo(blocker2, new OnTrack(4));
+        placeMysteryCellAt(3); // the partial move's actual landing cell
+
+        MoveGenerationResult result = generator.legalMoves(Colour.GREEN, 6, board, topology);
+
+        PartialMove move = assertInstanceOf(PartialMove.class, result.legalMoves().get(0));
+        assertEquals(new OnTrack(3), move.destination());
+        assertTrue(move.landsOnMystery());
+    }
+
+    @Test
+    @DisplayName("A-29: entering from base never lands on the mystery cell, even when the mystery cell is at X")
+    void a29_enterFromBaseNeverLandsOnMysteryEvenAtX() {
+        board.moveTo(new PieceId(Colour.GREEN, 1), new OnTrack(5)); // so anyPieceOnTrack() starts the A-28 timer
+        placeMysteryCellAt(topology.xIndex(Colour.RED));
+
+        List<Move> moves = legalMovesOnly(Colour.RED, 6);
+
+        assertTrue(moves.stream().noneMatch(Move::landsOnMystery));
+    }
+
+    @Test
+    @DisplayName("A-54: a T-6 forced-break member landing exactly on the mystery cell has landsOnMystery true")
+    void a54_forcedMoveLandingOnMysteryCellIsTrue() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new OnTrack(15));
+        board.assignDirection(id, Direction.CLOCKWISE);
+        placeMysteryCellAt(21); // 15 + 6 units clockwise
+
+        ForcedMoveOutcome outcome =
+                generator.forcedMove(board.piece(id), 6, Direction.CLOCKWISE, false, board, topology);
+
+        ForcedMoveOutcome.Movable movable = assertInstanceOf(ForcedMoveOutcome.Movable.class, outcome);
+        StepMove move = assertInstanceOf(StepMove.class, movable.move());
+        assertEquals(new OnTrack(21), move.destination());
+        assertTrue(move.landsOnMystery());
     }
 }
