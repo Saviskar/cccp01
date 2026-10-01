@@ -147,4 +147,26 @@ class BoardStateTest {
         board.applyEffect(id, effect);
         assertEquals(effect, board.piece(id).effect());
     }
+
+    @Test
+    @DisplayName("T-6: blockCellsOf returns every standard-track cell blocked by the given colour")
+    void t6_blockCellsOfReturnsAllBlockCellsForColour() {
+        board.moveTo(new PieceId(Colour.RED, 1), new OnTrack(5));
+        board.moveTo(new PieceId(Colour.RED, 2), new OnTrack(5));
+        board.moveTo(new PieceId(Colour.RED, 3), new OnTrack(20));
+        board.moveTo(new PieceId(Colour.RED, 4), new OnTrack(20));
+
+        assertEquals(List.of(5, 20), board.blockCellsOf(Colour.RED));
+    }
+
+    @Test
+    @DisplayName("T-6: blockCellsOf ignores other colours and cells with fewer than 2 pieces")
+    void t6_blockCellsOfIgnoresOtherColoursAndNonBlockCells() {
+        board.moveTo(new PieceId(Colour.RED, 1), new OnTrack(5));
+        board.moveTo(new PieceId(Colour.GREEN, 1), new OnTrack(6));
+        board.moveTo(new PieceId(Colour.GREEN, 2), new OnTrack(6));
+
+        assertTrue(board.blockCellsOf(Colour.RED).isEmpty());
+        assertEquals(List.of(6), board.blockCellsOf(Colour.GREEN));
+    }
 }

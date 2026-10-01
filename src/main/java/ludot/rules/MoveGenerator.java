@@ -159,7 +159,7 @@ public final class MoveGenerator {
     // per-piece moves above (a colour can own more than one block at once, e.g. 2+2).
     private List<Move> blockMoves(Colour colour, int roll, BoardState board, BoardTopology topology) {
         List<Move> moves = new ArrayList<>();
-        for (int cell : ownBlockCells(colour, board)) {
+        for (int cell : board.blockCellsOf(colour)) {
             List<PieceId> members = board.piecesAt(cell).stream()
                     .sorted(Comparator.comparingInt(PieceId::number)) // A-40/A-51: lowest piece number first.
                     .toList();
@@ -172,18 +172,6 @@ public final class MoveGenerator {
                     .ifPresent(moves::add);
         }
         return moves;
-    }
-
-    // Derives own-colour block cells from the colour's own (at most 4) pieces, rather than scanning
-    // every track cell: a block can only ever be at a cell one of this colour's pieces occupies.
-    private List<Integer> ownBlockCells(Colour colour, BoardState board) {
-        List<Integer> cells = new ArrayList<>();
-        for (Piece piece : board.piecesOfColour(colour)) {
-            if (piece.position() instanceof OnTrack(int idx) && board.isBlock(idx) && !cells.contains(idx)) {
-                cells.add(idx);
-            }
-        }
-        return cells;
     }
 
     // A-17: the members' shared direction if they agree; otherwise the farthest-from-home
@@ -230,6 +218,31 @@ public final class MoveGenerator {
         return Optional.of(new BlockMove(
                 members, new OnTrack(originCell), new OnTrack(idx), roll, cellsPerPiece, direction,
                 occupancy.captures(), crossesApproach));
+    }
+
+    // T-6/A-22: the Move a piece makes if forced to walk `units` cells in `direction` — the forced
+    // break after a third consecutive six, rather than a move chosen by a strategy from a roll's
+    // legal list. Reuses the same walk/landing logic as an ordinary roll, via buildStepMove and
+    // buildPartialMove below, instead of duplicating it. A-52's dead-end sub-case (the obstructing
+    // block is immediately adjacent) has no Move to execute, so the result distinguishes it from a
+    // movable outcome.
+    public ForcedMoveOutcome forcedMove(
+            Piece piece, int units, Direction direction, boolean breaksBlock, BoardState board,
+            BoardTopology topology) {
+        Colour colour = piece.id().colour();
+        RouteResult result = movementCalculator.walk(
+                piece.position(), units, colour, direction, piece.ccwApproachCrossings(), topology, board);
+        return switch (result) {
+            case RouteResult.Overshoot ignored -> throw new IllegalStateException(
+                    "T-6 forced move cannot overshoot: on-track distance to home is always >= 6 (A-05), "
+                            + "matching A-22's maximum 6-unit share");
+            case RouteResult.Obstructed obs when obs.cellsWalked() == 0 -> new ForcedMoveOutcome.DeadEnd(
+                    new PieceBlocked(piece.id(), piece.position(), obs.intendedDestination(), obs.blockingPieceId()));
+            case RouteResult.Obstructed obs -> new ForcedMoveOutcome.Movable(
+                    buildPartialMove(new ObstructedAttempt(piece, units, direction, obs, breaksBlock), board));
+            case RouteResult.Reachable(Position destination, boolean crossed) -> new ForcedMoveOutcome.Movable(
+                    buildStepMove(piece, destination, units, direction, crossed, breaksBlock, board));
+        };
     }
 
     private record ObstructedAttempt(

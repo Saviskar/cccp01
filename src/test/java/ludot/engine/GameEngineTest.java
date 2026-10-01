@@ -14,6 +14,7 @@ import ludot.events.RoundOrderAnnounced;
 import ludot.players.FirstLegalMoveStrategy;
 import ludot.players.PlayerStrategy;
 import ludot.random.Dice;
+import ludot.rules.BlockBreakPlanner;
 import ludot.rules.LandingResolver;
 import ludot.rules.MoveGenerator;
 import ludot.rules.MovementCalculator;
@@ -56,7 +57,7 @@ class GameEngineTest {
         // values are non-six), so a lambda avoids an unused Mockito stub tripping strict-stubs.
         TurnController turnController = new TurnController(
                 dice, () -> Direction.CLOCKWISE, new MoveGenerator(new MovementCalculator()), topology, events,
-                new LandingResolver());
+                new LandingResolver(), new BlockBreakPlanner());
         RoundManager roundManager = new RoundManager(turnController, events);
         Map<Colour, PlayerStrategy> strategies = new EnumMap<>(Colour.class);
         for (Colour colour : Colour.values()) {

@@ -90,6 +90,13 @@ capture fact is published, naming the block's lowest-numbered member as the capt
 with A-40 and A-48); every member's capture count still increments. The block's movement fact is
 published first, then the capture fact (A-46).
 
+**A-52 — Obstruction during a forced break (T-6).** If a member leaving a block under A-22 is
+obstructed by an opponent block, it moves as far as it can (a partial move to the cell before
+the block, A-16), publishing the same "is blocked" and partial-move facts as an ordinary
+obstructed move. If the block is adjacent, the member stays put and only the "is blocked" fact
+is published — never the "ignoring the throw" fact, since a forced break is not a throw.
+Captures during these moves count but grant no bonus roll (A-22).
+
 **A-48 — Blocked messages.** Obstruction is only reported when it decides the turn (A-16). If a partial move is made, only that piece publishes the "is blocked from moving from L1 to L2" fact followed by the partial-move fact. If no legal move exists at all and at least one piece is obstructed, each obstructed piece publishes the "is blocked" fact, followed by a single "ignoring the throw" fact for the player — and no `NoLegalMove`. If no legal move exists and nothing is obstructed, only `NoLegalMove` is published. When any full move exists, obstruction is silent. L2 = where the full roll would have taken the piece; the blocking piece named is the lowest-numbered piece in the block.
 
 **A-49 — Overshoot beats obstruction.** If the full roll would overshoot Home (A-09), the move is illegal for that piece even if an opponent block would have stopped it earlier; no partial move is offered and no blocked message is published. Only reachable once Alpha's energised effect doubles a roll (A-32).
