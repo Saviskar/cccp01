@@ -7,9 +7,14 @@ import ludot.domain.InHomeStraight;
 import ludot.domain.NoEffect;
 import ludot.domain.OnTrack;
 import ludot.domain.PieceId;
+import ludot.random.RandomPicker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 import java.util.Optional;
@@ -17,8 +22,14 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
 class BoardStateTest {
+
+    @Mock
+    private RandomPicker picker;
 
     private BoardState board;
 
@@ -168,5 +179,52 @@ class BoardStateTest {
 
         assertTrue(board.blockCellsOf(Colour.RED).isEmpty());
         assertEquals(List.of(6), board.blockCellsOf(Colour.GREEN));
+    }
+
+    @Test
+    @DisplayName("A-28: anyPieceOnTrack is false until a piece reaches the standard track")
+    void a28_anyPieceOnTrackIsFalseInitially() {
+        assertFalse(board.anyPieceOnTrack());
+        board.moveTo(new PieceId(Colour.RED, 1), new InHomeStraight(0));
+        assertFalse(board.anyPieceOnTrack());
+        board.moveTo(new PieceId(Colour.GREEN, 1), new OnTrack(5));
+        assertTrue(board.anyPieceOnTrack());
+    }
+
+    @Test
+    @DisplayName("mysteryCellLocation is empty before the mystery cell has spawned")
+    void mysteryCellLocationEmptyBeforeSpawn() {
+        assertEquals(Optional.empty(), board.mysteryCellLocation());
+    }
+
+    @Test
+    @DisplayName("A-28: tickMysteryCell spawns on an empty cell and mysteryCellLocation reflects it")
+    void a28_tickMysteryCellSpawnsOnEmptyCell() {
+        board.moveTo(new PieceId(Colour.RED, 1), new OnTrack(5));
+        board.moveTo(new PieceId(Colour.GREEN, 1), new OnTrack(10));
+        when(picker.pick(anyList())).thenReturn(7);
+
+        board.tickMysteryCell(picker); // starts the timer
+        board.tickMysteryCell(picker);
+        Optional<MysteryCellTick> spawned = board.tickMysteryCell(picker);
+
+        assertTrue(spawned.isPresent());
+        assertEquals(7, spawned.get().location());
+        assertEquals(Optional.of(7), board.mysteryCellLocation());
+    }
+
+    @Test
+    @DisplayName("A-28: tickMysteryCell's candidate list excludes occupied cells")
+    void a28_tickMysteryCellExcludesOccupiedCells() {
+        board.moveTo(new PieceId(Colour.RED, 1), new OnTrack(5));
+        ArgumentCaptor<List<Integer>> captor = ArgumentCaptor.forClass(List.class);
+        when(picker.pick(captor.capture())).thenReturn(10);
+
+        board.tickMysteryCell(picker);
+        board.tickMysteryCell(picker);
+        board.tickMysteryCell(picker);
+
+        assertFalse(captor.getValue().contains(5));
+        assertEquals(51, captor.getValue().size()); // every track cell except the occupied one
     }
 }

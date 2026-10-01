@@ -41,6 +41,9 @@ class BlockMoveTest {
     @Mock
     private LandingHandler landingHandler;
 
+    @Mock
+    private MysteryHandler mysteryHandler;
+
     private BoardState board;
     private EventBus events;
 
@@ -62,7 +65,7 @@ class BlockMoveTest {
                 List.of(member1, member2), new OnTrack(10), new OnTrack(13), 6, 3, Direction.CLOCKWISE, false,
                 false);
 
-        move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN));
+        move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN, mysteryHandler));
 
         assertEquals(new OnTrack(13), board.piece(member1).position());
         assertEquals(new OnTrack(13), board.piece(member2).position());
@@ -79,7 +82,7 @@ class BlockMoveTest {
                 List.of(member1, member2), new OnTrack(26), new OnTrack(23), 6, 3, Direction.COUNTERCLOCKWISE, false,
                 true);
 
-        move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN));
+        move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN, mysteryHandler));
 
         assertEquals(1, board.piece(member1).ccwApproachCrossings());
         assertEquals(1, board.piece(member2).ccwApproachCrossings());
@@ -96,9 +99,25 @@ class BlockMoveTest {
                 List.of(member1, member2), new OnTrack(10), new OnTrack(13), 6, 3, Direction.CLOCKWISE, false,
                 false);
 
-        move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN));
+        move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN, mysteryHandler));
 
         verifyNoInteractions(landingHandler);
+    }
+
+    @Test
+    @DisplayName("A-29: a block move never calls the mystery handler")
+    void a29_neverCallsMysteryHandler() {
+        PieceId member1 = new PieceId(Colour.RED, 1);
+        PieceId member2 = new PieceId(Colour.RED, 2);
+        board.moveTo(member1, new OnTrack(10));
+        board.moveTo(member2, new OnTrack(10));
+        Move move = new BlockMove(
+                List.of(member1, member2), new OnTrack(10), new OnTrack(13), 6, 3, Direction.CLOCKWISE, false,
+                false);
+
+        move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN, mysteryHandler));
+
+        verifyNoInteractions(mysteryHandler);
     }
 
     @Test
@@ -114,7 +133,8 @@ class BlockMoveTest {
                 .thenReturn(new LandingResult(true, Optional.of(new PieceId(Colour.GREEN, 1))));
         Move move = new BlockMove(members, new OnTrack(10), destination, 6, 3, Direction.CLOCKWISE, true, false);
 
-        MoveResult result = move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN));
+        MoveResult result =
+                move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN, mysteryHandler));
 
         assertEquals(new MoveResult(true), result);
         InOrder order = inOrder(listener, landingHandler);

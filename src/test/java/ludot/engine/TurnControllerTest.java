@@ -8,6 +8,7 @@ import ludot.domain.Colour;
 import ludot.domain.Direction;
 import ludot.domain.InBase;
 import ludot.domain.InHomeStraight;
+import ludot.domain.MysteryOutcomeKind;
 import ludot.domain.OnTrack;
 import ludot.domain.PieceId;
 import ludot.events.BlockadeBroken;
@@ -22,10 +23,14 @@ import ludot.events.ThrowIgnoredAfterBlock;
 import ludot.players.FirstLegalMoveStrategy;
 import ludot.players.PlayerStrategy;
 import ludot.random.Dice;
+import ludot.random.RandomPicker;
 import ludot.rules.BlockBreakPlanner;
 import ludot.rules.LandingResolver;
 import ludot.rules.MoveGenerator;
 import ludot.rules.MovementCalculator;
+import ludot.rules.MysteryOutcome;
+import ludot.rules.MysteryOutcomeFactory;
+import ludot.rules.MysteryResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,6 +45,8 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -54,6 +61,9 @@ class TurnControllerTest {
 
     @Mock
     private GameEventListener listener;
+
+    @Mock
+    private RandomPicker mysteryPicker;
 
     private BoardTopology topology;
     private BoardState board;
@@ -72,15 +82,37 @@ class TurnControllerTest {
         MoveGenerator moveGenerator = new MoveGenerator(new MovementCalculator());
         // Plumbing only: none of these tests reach EnterFromBase on every roll sequence, so a
         // Mockito mock here would trip strict-stubs' UnnecessaryStubbingException; a lambda is
-        // always "used" correctly whether or not a base entry occurs.
+        // always "used" correctly whether or not a base entry occurs. mysteryPicker is a real
+        // MysteryResolver's randomness source; no scenario here sets up a mystery cell unless the
+        // test stubs mysteryPicker itself (A-54 below), so it otherwise goes uninvoked.
+        MysteryResolver mysteryResolver =
+                new MysteryResolver(new MysteryOutcomeFactory(), mysteryPicker, topology, new LandingResolver());
         controller = new TurnController(
                 dice, () -> Direction.CLOCKWISE, moveGenerator, topology, events, new LandingResolver(),
-                new BlockBreakPlanner());
+                new BlockBreakPlanner(), mysteryResolver);
         player = new Player(Colour.RED, new FirstLegalMoveStrategy());
     }
 
     private GameView view() {
         return board;
+    }
+
+    // A-28: spawns the mystery cell at exactly `index`, assuming a piece is already on the track.
+    private void placeMysteryCellAt(int index) {
+        // doAnswer (not when/thenAnswer): safe to re-stub later without calling through to this
+        // answer during registration, since anyList()'s dummy argument is an empty list.
+        doAnswer(inv -> {
+            List<?> options = inv.getArgument(0);
+            if (!options.isEmpty() && options.get(0) instanceof Integer) {
+                return index;
+            }
+            // A-30: the outcome draw, when stubbed generically alongside the cell pick -- tests
+            // that care which outcome is drawn stub this call specifically instead.
+            return options.isEmpty() ? null : options.get(0);
+        }).when(mysteryPicker).pick(anyList());
+        board.tickMysteryCell(mysteryPicker);
+        board.tickMysteryCell(mysteryPicker);
+        board.tickMysteryCell(mysteryPicker);
     }
 
     // T-6 test helper: always picks a block move (over an individual step) when one is legal,
@@ -584,5 +616,39 @@ class TurnControllerTest {
         assertEquals(new OnTrack(13), board.piece(aLeaves).position()); // lands on block B's cell, moved once
         assertEquals(new OnTrack(13), board.piece(bStays).position()); // B still breaks as its own 2-block...
         assertEquals(new OnTrack(19), board.piece(bLeaves).position()); // ...6 units, not re-split for a 3rd member
+    }
+
+    @Test
+    @DisplayName("A-54: a forced-break member landing on the mystery cell captures via teleport, "
+            + "but still grants no bonus roll")
+    void a54_forcedBreakMysteryCaptureGrantsNoBonusRoll() {
+        PieceId absorber = new PieceId(Colour.RED, 1);
+        PieceId staying = new PieceId(Colour.RED, 3);
+        PieceId leaving = new PieceId(Colour.RED, 4);
+        PieceId opponent = new PieceId(Colour.GREEN, 1);
+        board.moveTo(new PieceId(Colour.RED, 2), new AtHome());
+        board.moveTo(absorber, new OnTrack(0));
+        board.assignDirection(absorber, Direction.CLOCKWISE);
+        board.moveTo(staying, new OnTrack(15));
+        board.assignDirection(staying, Direction.COUNTERCLOCKWISE);
+        board.moveTo(leaving, new OnTrack(15));
+        board.assignDirection(leaving, Direction.CLOCKWISE);
+        board.moveTo(opponent, new OnTrack(topology.xIndex(Colour.RED))); // where the teleport will capture
+        placeMysteryCellAt(21); // leaving's post-break landing cell (15 + 6 clockwise)
+        // doAnswer (not when/thenAnswer): re-stubbing the same mock+matcher via when() would call
+        // through to the still-active stub above during registration itself, since anyList()'s
+        // dummy argument is an empty list and that stub indexes into it.
+        doAnswer(inv -> {
+            List<MysteryOutcome> options = inv.getArgument(0);
+            return options.stream().filter(o -> o.kind() == MysteryOutcomeKind.X).findFirst().orElseThrow();
+        }).when(mysteryPicker).pick(anyList());
+        when(dice.roll()).thenReturn(6, 6, 6);
+
+        controller.playTurn(player, board, standings, view());
+
+        verify(dice, times(3)).roll(); // A-22/A-54: the turn has ended, no bonus roll despite the capture
+        assertEquals(new OnTrack(topology.xIndex(Colour.RED)), board.piece(leaving).position());
+        assertEquals(new InBase(), board.piece(opponent).position());
+        assertEquals(1, board.piece(leaving).captureCount());
     }
 }

@@ -44,6 +44,9 @@ class EnterFromBaseTest {
     @Mock
     private Coin coin;
 
+    @Mock
+    private MysteryHandler mysteryHandler;
+
     private BoardState board;
     private EventBus events;
 
@@ -61,7 +64,7 @@ class EnterFromBaseTest {
         Move move = new EnterFromBase(id, new OnTrack(RED_X), false, false);
         when(coin.toss()).thenReturn(Direction.CLOCKWISE);
 
-        move.execute(new MoveContext(board, events, landingHandler, coin));
+        move.execute(new MoveContext(board, events, landingHandler, coin, mysteryHandler));
 
         assertEquals(new OnTrack(RED_X), board.piece(id).position());
     }
@@ -73,7 +76,7 @@ class EnterFromBaseTest {
         Move move = new EnterFromBase(id, new OnTrack(RED_X), false, false);
         when(coin.toss()).thenReturn(Direction.CLOCKWISE);
 
-        move.execute(new MoveContext(board, events, landingHandler, coin));
+        move.execute(new MoveContext(board, events, landingHandler, coin, mysteryHandler));
 
         assertEquals(Optional.of(Direction.CLOCKWISE), board.piece(id).originalDirection());
     }
@@ -85,7 +88,7 @@ class EnterFromBaseTest {
         Move move = new EnterFromBase(id, new OnTrack(RED_X), false, false);
         when(coin.toss()).thenReturn(Direction.COUNTERCLOCKWISE);
 
-        move.execute(new MoveContext(board, events, landingHandler, coin));
+        move.execute(new MoveContext(board, events, landingHandler, coin, mysteryHandler));
 
         assertEquals(Optional.of(Direction.COUNTERCLOCKWISE), board.piece(id).originalDirection());
     }
@@ -97,7 +100,7 @@ class EnterFromBaseTest {
         Move move = new EnterFromBase(id, new OnTrack(RED_X), false, false);
         when(coin.toss()).thenReturn(Direction.CLOCKWISE);
 
-        move.execute(new MoveContext(board, events, landingHandler, coin));
+        move.execute(new MoveContext(board, events, landingHandler, coin, mysteryHandler));
 
         verify(coin).toss();
     }
@@ -109,7 +112,7 @@ class EnterFromBaseTest {
         Move move = new EnterFromBase(id, new OnTrack(RED_X), false, false);
         when(coin.toss()).thenReturn(Direction.CLOCKWISE);
 
-        move.execute(new MoveContext(board, events, landingHandler, coin));
+        move.execute(new MoveContext(board, events, landingHandler, coin, mysteryHandler));
 
         ArgumentCaptor<PieceEnteredX> captor = ArgumentCaptor.forClass(PieceEnteredX.class);
         verify(listener).onEvent(captor.capture());
@@ -125,7 +128,7 @@ class EnterFromBaseTest {
         Move move = new EnterFromBase(id, new OnTrack(RED_X), false, false);
         when(coin.toss()).thenReturn(Direction.COUNTERCLOCKWISE);
 
-        move.execute(new MoveContext(board, events, landingHandler, coin));
+        move.execute(new MoveContext(board, events, landingHandler, coin, mysteryHandler));
 
         ArgumentCaptor<PieceDirectionAssigned> captor = ArgumentCaptor.forClass(PieceDirectionAssigned.class);
         InOrder order = inOrder(listener);
@@ -142,7 +145,7 @@ class EnterFromBaseTest {
         Move move = new EnterFromBase(id, new OnTrack(RED_X), false, false);
         when(coin.toss()).thenReturn(Direction.CLOCKWISE);
 
-        move.execute(new MoveContext(board, events, landingHandler, coin));
+        move.execute(new MoveContext(board, events, landingHandler, coin, mysteryHandler));
 
         verifyNoInteractions(landingHandler);
     }
@@ -157,11 +160,23 @@ class EnterFromBaseTest {
         when(coin.toss()).thenReturn(Direction.CLOCKWISE);
         Move move = new EnterFromBase(id, destination, true, false);
 
-        MoveResult result = move.execute(new MoveContext(board, events, landingHandler, coin));
+        MoveResult result = move.execute(new MoveContext(board, events, landingHandler, coin, mysteryHandler));
 
         assertEquals(new MoveResult(true), result);
         InOrder order = inOrder(listener, landingHandler);
         order.verify(listener).onEvent(any(PieceEnteredX.class));
         order.verify(landingHandler).resolveLanding(List.of(id), destination, board, events);
+    }
+
+    @Test
+    @DisplayName("A-29: entering from base never calls the mystery handler, even landing where the mystery cell is")
+    void a29_neverCallsMysteryHandler() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        Move move = new EnterFromBase(id, new OnTrack(RED_X), false, false);
+        when(coin.toss()).thenReturn(Direction.CLOCKWISE);
+
+        move.execute(new MoveContext(board, events, landingHandler, coin, mysteryHandler));
+
+        verifyNoInteractions(mysteryHandler);
     }
 }

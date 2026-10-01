@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -41,6 +42,9 @@ class PartialMoveTest {
 
     @Mock
     private LandingHandler landingHandler;
+
+    @Mock
+    private MysteryHandler mysteryHandler;
 
     private BoardState board;
     private EventBus events;
@@ -60,9 +64,9 @@ class PartialMoveTest {
         PieceId blocker = new PieceId(Colour.GREEN, 1);
         Move move = new PartialMove(
                 id, new OnTrack(0), new OnTrack(3), new OnTrack(6), blocker, 6, 3, Direction.CLOCKWISE, false, false,
-                false, false);
+                false, false, false);
 
-        move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN));
+        move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN, mysteryHandler));
 
         assertEquals(new OnTrack(3), board.piece(id).position());
     }
@@ -75,9 +79,9 @@ class PartialMoveTest {
         PieceId blocker = new PieceId(Colour.GREEN, 1);
         Move move = new PartialMove(
                 id, new OnTrack(0), new OnTrack(3), new OnTrack(6), blocker, 6, 3, Direction.CLOCKWISE, false, false,
-                false, false);
+                false, false, false);
 
-        move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN));
+        move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN, mysteryHandler));
 
         InOrder order = inOrder(listener);
         ArgumentCaptor<PieceBlocked> blockedCaptor = ArgumentCaptor.forClass(PieceBlocked.class);
@@ -107,9 +111,9 @@ class PartialMoveTest {
         board.assignDirection(id, Direction.COUNTERCLOCKWISE);
         Move move = new PartialMove(
                 id, new OnTrack(10), new OnTrack(9), new OnTrack(6), new PieceId(Colour.GREEN, 1), 4, 1,
-                Direction.COUNTERCLOCKWISE, false, false, false, true);
+                Direction.COUNTERCLOCKWISE, false, false, false, true, false);
 
-        move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN));
+        move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN, mysteryHandler));
 
         assertEquals(1, board.piece(id).ccwApproachCrossings());
     }
@@ -121,9 +125,9 @@ class PartialMoveTest {
         board.moveTo(id, new OnTrack(0));
         Move move = new PartialMove(
                 id, new OnTrack(0), new OnTrack(3), new OnTrack(6), new PieceId(Colour.GREEN, 1), 6, 3,
-                Direction.CLOCKWISE, false, false, false, false);
+                Direction.CLOCKWISE, false, false, false, false, false);
 
-        move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN));
+        move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN, mysteryHandler));
 
         verifyNoInteractions(landingHandler);
     }
@@ -138,9 +142,9 @@ class PartialMoveTest {
                 .thenReturn(new LandingResult(true, Optional.of(new PieceId(Colour.BLUE, 1))));
         Move move = new PartialMove(
                 id, new OnTrack(0), destination, new OnTrack(6), new PieceId(Colour.GREEN, 1), 6, 3,
-                Direction.CLOCKWISE, true, false, false, false);
+                Direction.CLOCKWISE, true, false, false, false, false);
 
-        MoveResult result = move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN));
+        MoveResult result = move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN, mysteryHandler));
 
         assertEquals(new MoveResult(true), result);
         InOrder order = inOrder(listener, landingHandler);
@@ -156,11 +160,60 @@ class PartialMoveTest {
         board.moveTo(id, new OnTrack(0));
         Move move = new PartialMove(
                 id, new OnTrack(0), new OnTrack(3), new OnTrack(6), new PieceId(Colour.GREEN, 1), 6, 3,
-                Direction.CLOCKWISE, false, false, false, false);
+                Direction.CLOCKWISE, false, false, false, false, false);
         Coin coin = mock(Coin.class);
 
-        move.execute(new MoveContext(board, events, landingHandler, coin));
+        move.execute(new MoveContext(board, events, landingHandler, coin, mysteryHandler));
 
         verifyNoInteractions(coin);
+    }
+
+    @Test
+    @DisplayName("A-29: a non-mystery partial move never calls the mystery handler")
+    void a29_nonMysteryPartialMoveDoesNotCallMysteryHandler() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new OnTrack(0));
+        Move move = new PartialMove(
+                id, new OnTrack(0), new OnTrack(3), new OnTrack(6), new PieceId(Colour.GREEN, 1), 6, 3,
+                Direction.CLOCKWISE, false, false, false, false, false);
+
+        move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN, mysteryHandler));
+
+        verifyNoInteractions(mysteryHandler);
+    }
+
+    @Test
+    @DisplayName("A-29: a partial move landing on the mystery cell triggers the mystery handler after moving")
+    void a29_mysteryPartialMoveTriggersMysteryHandlerAfterMoving() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new OnTrack(0));
+        Position destination = new OnTrack(3);
+        when(mysteryHandler.trigger(id, board, events)).thenReturn(false);
+        Move move = new PartialMove(
+                id, new OnTrack(0), destination, new OnTrack(6), new PieceId(Colour.GREEN, 1), 6, 3,
+                Direction.CLOCKWISE, false, false, false, false, true);
+
+        move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN, mysteryHandler));
+
+        InOrder order = inOrder(listener, mysteryHandler);
+        order.verify(listener).onEvent(any(PiecePartiallyMoved.class));
+        order.verify(mysteryHandler).trigger(id, board, events);
+    }
+
+    @Test
+    @DisplayName("A-23: a capture made via the mystery teleport still grants the bonus-roll result")
+    void a23_teleportCaptureIsReflectedInMoveResult() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new OnTrack(0));
+        Position destination = new OnTrack(3);
+        when(mysteryHandler.trigger(id, board, events)).thenReturn(true);
+        Move move = new PartialMove(
+                id, new OnTrack(0), destination, new OnTrack(6), new PieceId(Colour.GREEN, 1), 6, 3,
+                Direction.CLOCKWISE, false, false, false, false, true);
+
+        MoveResult result = move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN, mysteryHandler));
+
+        assertEquals(new MoveResult(true), result);
+        verify(landingHandler, never()).resolveLanding(any(), any(), any(), any());
     }
 }

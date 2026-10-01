@@ -19,6 +19,7 @@ import ludot.moves.LandingHandler;
 import ludot.moves.Move;
 import ludot.moves.MoveContext;
 import ludot.moves.MoveResult;
+import ludot.moves.MysteryHandler;
 import ludot.random.Coin;
 import ludot.random.Dice;
 import ludot.rules.BlockBreak;
@@ -47,10 +48,11 @@ public final class TurnController {
     private final EventBus events;
     private final LandingHandler landingHandler;
     private final BlockBreakPlanner blockBreakPlanner;
+    private final MysteryHandler mysteryHandler;
 
     public TurnController(
             Dice dice, Coin coin, MoveGenerator moveGenerator, BoardTopology topology, EventBus events,
-            LandingHandler landingHandler, BlockBreakPlanner blockBreakPlanner) {
+            LandingHandler landingHandler, BlockBreakPlanner blockBreakPlanner, MysteryHandler mysteryHandler) {
         this.dice = dice;
         this.coin = coin;
         this.moveGenerator = moveGenerator;
@@ -58,6 +60,7 @@ public final class TurnController {
         this.events = events;
         this.landingHandler = landingHandler;
         this.blockBreakPlanner = blockBreakPlanner;
+        this.mysteryHandler = mysteryHandler;
     }
 
     public void playTurn(Player player, BoardState board, Standings standings, GameView view) {
@@ -99,7 +102,7 @@ public final class TurnController {
         if (!moves.contains(chosen)) {
             throw new IllegalStateException("Strategy chose a move outside the legal list: " + chosen);
         }
-        MoveResult result = chosen.execute(new MoveContext(board, events, landingHandler, coin));
+        MoveResult result = chosen.execute(new MoveContext(board, events, landingHandler, coin, mysteryHandler));
 
         if (board.countAtHome(colour) != PIECES_PER_COLOUR) {
             return new RollOutcome(result.captured(), false, false);
@@ -153,7 +156,7 @@ public final class TurnController {
         switch (outcome) {
             case ForcedMoveOutcome.DeadEnd deadEnd -> events.publish(deadEnd.blocked()); // A-52
             case ForcedMoveOutcome.Movable movable ->
-                    movable.move().execute(new MoveContext(board, events, landingHandler, coin));
+                    movable.move().execute(new MoveContext(board, events, landingHandler, coin, mysteryHandler));
         }
     }
 }

@@ -107,11 +107,17 @@ public final class MoveGenerator {
             OccupancyOutcome occupancy = occupancyOutcome(idx, piece.id().colour(), board);
             return new StepMove(
                     piece.id(), piece.position(), destination, roll, direction, occupancy.captures(),
-                    occupancy.formsBlock(), breaksBlock, crossed);
+                    occupancy.formsBlock(), breaksBlock, crossed, landsOnMystery(idx, board));
         }
         // A-10: home-straight cells allow own-colour sharing without forming a block, and never hold an opponent.
         return new StepMove(
-                piece.id(), piece.position(), destination, roll, direction, false, false, breaksBlock, crossed);
+                piece.id(), piece.position(), destination, roll, direction, false, false, breaksBlock, crossed,
+                false);
+    }
+
+    // A-29: only a standard-track destination can be the mystery cell.
+    private boolean landsOnMystery(int trackIndex, BoardState board) {
+        return board.mysteryCellLocation().map(location -> location == trackIndex).orElse(false);
     }
 
     private MoveGenerationResult fallback(List<ObstructedAttempt> obstructed, BoardState board) {
@@ -142,7 +148,7 @@ public final class MoveGenerator {
                 attempt.piece().id(), attempt.piece().position(), destination, route.intendedDestination(),
                 route.blockingPieceId(), attempt.roll(), route.cellsWalked(), attempt.direction(),
                 occupancy.captures(), occupancy.formsBlock(), attempt.breaksBlock(),
-                route.crossedApproachWithoutEntering());
+                route.crossedApproachWithoutEntering(), landsOnMystery(idx, board));
     }
 
     private OccupancyOutcome occupancyOutcome(int trackIndex, Colour colour, BoardState board) {

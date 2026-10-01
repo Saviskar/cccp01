@@ -21,5 +21,9 @@ public sealed interface GameEvent permits
         BlockadeBroken,
         RoundStatusReported,
         PlayerFinished,
-        GameEnded {
+        GameEnded,
+        MysterySpawned,
+        MysteryCellStatusReported,
+        MysteryCellTriggered,
+        PieceTeleported {
 }

@@ -18,16 +18,12 @@ public record StepMove(
         boolean capturesSomething,
         boolean formsBlock,
         boolean breaksBlock,
-        boolean crossesApproachWithoutEntering) implements Move {
+        boolean crossesApproachWithoutEntering,
+        boolean landsOnMystery) implements Move {
 
     @Override
     public List<PieceId> pieceIds() {
         return List.of(pieceId);
-    }
-
-    @Override
-    public boolean landsOnMystery() {
-        return false;
     }
 
     @Override
@@ -39,12 +35,18 @@ public record StepMove(
         }
         context.events().publish(new PieceMoved(pieceId, origin, destination, rollValue, direction));
 
-        if (!capturesSomething) {
-            return new MoveResult(false);
+        boolean captured = false;
+        if (capturesSomething) {
+            // A-46: the move message is published before the capture message.
+            LandingResult landing =
+                    context.landingHandler().resolveLanding(List.of(pieceId), destination, board, context.events());
+            captured = landing.captured();
         }
-        // A-46: the move message is published before the capture message.
-        LandingResult landing =
-                context.landingHandler().resolveLanding(List.of(pieceId), destination, board, context.events());
-        return new MoveResult(landing.captured());
+        if (landsOnMystery) {
+            // A-29: only an individual piece ending its move on the mystery cell triggers T-11.
+            boolean teleportCaptured = context.mysteryHandler().trigger(pieceId, board, context.events());
+            captured = captured || teleportCaptured;
+        }
+        return new MoveResult(captured);
     }
 }
