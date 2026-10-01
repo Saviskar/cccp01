@@ -10,6 +10,7 @@ public sealed interface GameEvent permits
         PieceEnteredX,
         PieceDirectionAssigned,
         PieceMoved,
+        BlockMoved,
         PieceCaptured,
         PieceCountStatus,
         PieceBlocked,

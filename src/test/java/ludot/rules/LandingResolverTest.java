@@ -20,10 +20,12 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class LandingResolverTest {
@@ -49,7 +51,7 @@ class LandingResolverTest {
         PieceId captured = new PieceId(Colour.GREEN, 1);
         board.moveTo(captured, new OnTrack(5));
 
-        resolver.resolveLanding(capturer, new OnTrack(5), board, events);
+        resolver.resolveLanding(List.of(capturer), new OnTrack(5), board, events);
 
         assertEquals(new InBase(), board.piece(captured).position());
     }
@@ -61,7 +63,7 @@ class LandingResolverTest {
         PieceId captured = new PieceId(Colour.GREEN, 1);
         board.moveTo(captured, new OnTrack(5));
 
-        resolver.resolveLanding(capturer, new OnTrack(5), board, events);
+        resolver.resolveLanding(List.of(capturer), new OnTrack(5), board, events);
 
         assertEquals(1, board.piece(capturer).captureCount());
     }
@@ -73,7 +75,7 @@ class LandingResolverTest {
         PieceId captured = new PieceId(Colour.GREEN, 1);
         board.moveTo(captured, new OnTrack(5));
 
-        LandingResult result = resolver.resolveLanding(capturer, new OnTrack(5), board, events);
+        LandingResult result = resolver.resolveLanding(List.of(capturer), new OnTrack(5), board, events);
 
         assertEquals(new LandingResult(true, Optional.of(captured)), result);
 
@@ -100,11 +102,42 @@ class LandingResolverTest {
         board.recordCapture(captured);
         board.recordApproachCrossing(captured);
 
-        resolver.resolveLanding(capturer, new OnTrack(5), board, events);
+        resolver.resolveLanding(List.of(capturer), new OnTrack(5), board, events);
 
         assertEquals(new InBase(), board.piece(captured).position());
         assertEquals(Optional.empty(), board.piece(captured).originalDirection());
         assertEquals(0, board.piece(captured).captureCount());
         assertEquals(0, board.piece(captured).ccwApproachCrossings());
+    }
+
+    @Test
+    @DisplayName("A-19: a block capture increments every member's capture count")
+    void a19_blockCaptureIncrementsEveryMembersCaptureCount() {
+        PieceId capturer1 = new PieceId(Colour.RED, 1);
+        PieceId capturer2 = new PieceId(Colour.RED, 2);
+        PieceId captured = new PieceId(Colour.GREEN, 1);
+        board.moveTo(captured, new OnTrack(5));
+
+        resolver.resolveLanding(List.of(capturer1, capturer2), new OnTrack(5), board, events);
+
+        assertEquals(1, board.piece(capturer1).captureCount());
+        assertEquals(1, board.piece(capturer2).captureCount());
+    }
+
+    @Test
+    @DisplayName("A-51: a block capture names the lowest-numbered member as capturer")
+    void a51_blockCaptureNamesLowestNumberedMemberAsCapturer() {
+        PieceId lowestNumbered = new PieceId(Colour.RED, 1);
+        PieceId other = new PieceId(Colour.RED, 2);
+        PieceId captured = new PieceId(Colour.GREEN, 1);
+        board.moveTo(captured, new OnTrack(5));
+
+        LandingResult result =
+                resolver.resolveLanding(List.of(lowestNumbered, other), new OnTrack(5), board, events);
+
+        assertEquals(new LandingResult(true, Optional.of(captured)), result);
+        ArgumentCaptor<PieceCaptured> capturedCaptor = ArgumentCaptor.forClass(PieceCaptured.class);
+        verify(listener).onEvent(capturedCaptor.capture());
+        assertEquals(lowestNumbered, capturedCaptor.getValue().capturerId());
     }
 }

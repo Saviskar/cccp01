@@ -9,18 +9,21 @@ import ludot.domain.Direction;
 import ludot.domain.InBase;
 import ludot.domain.InHomeStraight;
 import ludot.domain.OnTrack;
+import ludot.domain.PieceId;
 import ludot.domain.Position;
 import ludot.events.PieceBlocked;
+import ludot.moves.BlockMove;
 import ludot.moves.EnterFromBase;
 import ludot.moves.Move;
 import ludot.moves.PartialMove;
 import ludot.moves.StepMove;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
-/** Builds every legal {@link Move} for a colour and roll (Rules 1–10, T-3). */
+/** Builds every legal {@link Move} for a colour and roll (Rules 1–10, T-3, T-4). */
 public final class MoveGenerator {
 
     // Rule 2: a piece leaves base only on a six.
@@ -38,6 +41,7 @@ public final class MoveGenerator {
         for (Piece piece : board.piecesOfColour(colour)) {
             collect(piece, colour, roll, board, topology, fullMoves, obstructed);
         }
+        fullMoves.addAll(blockMoves(colour, roll, board, topology)); // T-4: offered alongside individual moves
         // A-16/A-48: a partial move (or its dead-end report) is only ever produced
         // as a last resort, when the colour has no other legal full move.
         if (!fullMoves.isEmpty()) {
@@ -82,26 +86,31 @@ public final class MoveGenerator {
             List<Move> fullMoves, List<ObstructedAttempt> obstructed) {
         // A-12: a piece off base always has a direction; T-1 (phase 4a) is what lets it be counterclockwise.
         Direction direction = piece.originalDirection().orElseThrow();
+        // T-5/A-21 fact: true when this piece's cell is currently a block of its own colour.
+        boolean breaksBlock = piece.position() instanceof OnTrack(int idx) && board.isBlock(idx);
         RouteResult result = movementCalculator.walk(
                 piece.position(), roll, colour, direction, piece.ccwApproachCrossings(), topology, board);
         switch (result) {
             case RouteResult.Overshoot ignored -> { } // Rule 10: overshoot is illegal.
-            case RouteResult.Obstructed obs -> obstructed.add(new ObstructedAttempt(piece, roll, direction, obs));
+            case RouteResult.Obstructed obs ->
+                    obstructed.add(new ObstructedAttempt(piece, roll, direction, obs, breaksBlock));
             case RouteResult.Reachable(Position destination, boolean crossed) ->
-                    fullMoves.add(buildStepMove(piece, destination, roll, direction, crossed, board));
+                    fullMoves.add(buildStepMove(piece, destination, roll, direction, crossed, breaksBlock, board));
         }
     }
 
     private Move buildStepMove(
-            Piece piece, Position destination, int roll, Direction direction, boolean crossed, BoardState board) {
+            Piece piece, Position destination, int roll, Direction direction, boolean crossed, boolean breaksBlock,
+            BoardState board) {
         if (destination instanceof OnTrack(int idx)) {
             OccupancyOutcome occupancy = occupancyOutcome(idx, piece.id().colour(), board);
             return new StepMove(
                     piece.id(), piece.position(), destination, roll, direction, occupancy.captures(),
-                    occupancy.formsBlock(), crossed);
+                    occupancy.formsBlock(), breaksBlock, crossed);
         }
         // A-10: home-straight cells allow own-colour sharing without forming a block, and never hold an opponent.
-        return new StepMove(piece.id(), piece.position(), destination, roll, direction, false, false, crossed);
+        return new StepMove(
+                piece.id(), piece.position(), destination, roll, direction, false, false, breaksBlock, crossed);
     }
 
     private MoveGenerationResult fallback(List<ObstructedAttempt> obstructed, BoardState board) {
@@ -131,7 +140,8 @@ public final class MoveGenerator {
         return new PartialMove(
                 attempt.piece().id(), attempt.piece().position(), destination, route.intendedDestination(),
                 route.blockingPieceId(), attempt.roll(), route.cellsWalked(), attempt.direction(),
-                occupancy.captures(), occupancy.formsBlock(), route.crossedApproachWithoutEntering());
+                occupancy.captures(), occupancy.formsBlock(), attempt.breaksBlock(),
+                route.crossedApproachWithoutEntering());
     }
 
     private OccupancyOutcome occupancyOutcome(int trackIndex, Colour colour, BoardState board) {
@@ -145,7 +155,85 @@ public final class MoveGenerator {
         return new OccupancyOutcome(true, false); // a lone opponent — a block would already have obstructed the walk.
     }
 
-    private record ObstructedAttempt(Piece piece, int roll, Direction direction, RouteResult.Obstructed route) {
+    // T-4/A-17: a block move is offered for every own-colour block, independently of the
+    // per-piece moves above (a colour can own more than one block at once, e.g. 2+2).
+    private List<Move> blockMoves(Colour colour, int roll, BoardState board, BoardTopology topology) {
+        List<Move> moves = new ArrayList<>();
+        for (int cell : ownBlockCells(colour, board)) {
+            List<PieceId> members = board.piecesAt(cell).stream()
+                    .sorted(Comparator.comparingInt(PieceId::number)) // A-40/A-51: lowest piece number first.
+                    .toList();
+            int cellsPerPiece = roll / members.size();
+            if (cellsPerPiece == 0) {
+                continue; // A-17: a zero-cell block move is illegal.
+            }
+            Direction direction = blockDirection(members, cell, colour, board, topology);
+            buildBlockMove(members, cell, roll, cellsPerPiece, direction, colour, board, topology)
+                    .ifPresent(moves::add);
+        }
+        return moves;
+    }
+
+    // Derives own-colour block cells from the colour's own (at most 4) pieces, rather than scanning
+    // every track cell: a block can only ever be at a cell one of this colour's pieces occupies.
+    private List<Integer> ownBlockCells(Colour colour, BoardState board) {
+        List<Integer> cells = new ArrayList<>();
+        for (Piece piece : board.piecesOfColour(colour)) {
+            if (piece.position() instanceof OnTrack(int idx) && board.isBlock(idx) && !cells.contains(idx)) {
+                cells.add(idx);
+            }
+        }
+        return cells;
+    }
+
+    // A-17: the members' shared direction if they agree; otherwise the farthest-from-home
+    // member's direction, tie broken to clockwise. Comparing each direction's best distance
+    // handles both cases uniformly: when every member agrees, only one direction has any
+    // candidate distance at all.
+    private Direction blockDirection(
+            List<PieceId> members, int cell, Colour colour, BoardState board, BoardTopology topology) {
+        int clockwiseBest = Integer.MIN_VALUE;
+        int counterclockwiseBest = Integer.MIN_VALUE;
+        for (PieceId id : members) {
+            Piece piece = board.piece(id);
+            Direction direction = piece.originalDirection().orElseThrow();
+            int distance = topology.distanceFromHome(colour, direction, cell, piece.ccwApproachCrossings());
+            if (direction == Direction.CLOCKWISE) {
+                clockwiseBest = Math.max(clockwiseBest, distance);
+            } else {
+                counterclockwiseBest = Math.max(counterclockwiseBest, distance);
+            }
+        }
+        return counterclockwiseBest > clockwiseBest ? Direction.COUNTERCLOCKWISE : Direction.CLOCKWISE;
+    }
+
+    // A-50: an opponent block anywhere on the path, including the landing cell, makes the whole
+    // block move illegal — no partial block moves exist. A-08: a counterclockwise walk that
+    // steps past (leaves) the shared Approach cell records a crossing for every member (A-18:
+    // a block move never enters the home straight, so this is always a non-entering crossing).
+    private Optional<Move> buildBlockMove(
+            List<PieceId> members, int originCell, int roll, int cellsPerPiece, Direction direction, Colour colour,
+            BoardState board, BoardTopology topology) {
+        int approach = topology.approachIndex(colour);
+        int idx = originCell;
+        boolean crossesApproach = false;
+        for (int step = 0; step < cellsPerPiece; step++) {
+            if (direction == Direction.COUNTERCLOCKWISE && idx == approach) {
+                crossesApproach = true;
+            }
+            idx = topology.step(idx, direction);
+            if (board.isBlock(idx) && board.colourAt(idx).orElseThrow() != colour) {
+                return Optional.empty();
+            }
+        }
+        OccupancyOutcome occupancy = occupancyOutcome(idx, colour, board);
+        return Optional.of(new BlockMove(
+                members, new OnTrack(originCell), new OnTrack(idx), roll, cellsPerPiece, direction,
+                occupancy.captures(), crossesApproach));
+    }
+
+    private record ObstructedAttempt(
+            Piece piece, int roll, Direction direction, RouteResult.Obstructed route, boolean breaksBlock) {
     }
 
     private record OccupancyOutcome(boolean captures, boolean formsBlock) {

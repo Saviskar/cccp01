@@ -171,9 +171,10 @@ interface Move
   capturesSomething(): bool
   landsOnMystery(): bool
   formsBlock(): bool
+  breaksBlock(): bool
   execute(context)
 ```
-Implementations: `EnterFromBase`, `StepMove`, `PartialMove`, `BlockMove`, `BlockBreakMove`.
+Implementations: `EnterFromBase`, `StepMove`, `PartialMove`, `BlockMove`.
 
 **Why:** strategies need to *compare* moves before any are executed ("does this capture?", "does this land on the mystery cell?"). The move objects precompute those facts, so the strategies read them instead of re-deriving the rules.
 
@@ -414,7 +415,7 @@ classDiagram
     }
     class LandingHandler {
         <<interface>>
-        +resolveLanding(moverId, destination, board, events) LandingResult
+        +resolveLanding(moverIds, destination, board, events) LandingResult
     }
     class MysteryResolver {
         +trigger(piece)
@@ -498,7 +499,6 @@ classDiagram
     Move <|.. StepMove
     Move <|.. PartialMove
     Move <|.. BlockMove
-    Move <|.. BlockBreakMove
     PlayerStrategy <|.. RedStrategy
     PlayerStrategy <|.. GreenStrategy
     PlayerStrategy <|.. YellowStrategy
@@ -558,3 +558,4 @@ during the corresponding phase's planning. A change recorded here is not a viola
 | 3 | 8.1 | The no-legal-moves branch continues the roll loop when the roll was a six, instead of unconditionally ending the turn | A-47: a six always grants a bonus roll, even when it produced no legal move |
 | 4a | 2.2, 11.1 | `moves` package depends on `random`; `Coin` added to `MoveContext` | T-1's coin toss happens inside `EnterFromBase.execute()`, once the piece reaches X, keeping `TurnController` free of per-move-type checks |
 | 4c | 8.1 | The no-legal-moves branch now checks for dead-end obstructions first: if any exist, each publishes `PieceBlocked`, followed by one `ThrowIgnoredAfterBlock`, and the turn ends unconditionally — skipping the six's bonus-roll `continue` | A-48: obstruction is only reported when it decides the turn; A-47's exception: a dead-end obstruction ends the turn even on a six, unlike an ordinary no-legal-move six |
+| 4d | 3.8, 11.1 | `BlockBreakMove` dropped from the `Move` implementation list; `Move` gains a `breaksBlock(): bool` fact instead. `LandingHandler.resolveLanding`'s diagram signature widens from a single `moverId` to `moverIds` | T-5 already holds via ordinary `StepMove`/`PartialMove` generation, which already uses `Piece.originalDirection()` regardless of block membership — a dedicated break-move type would add no behaviour, so strategies instead read a precomputed fact (OCP/F2), matching `formsBlock()`. The `LandingHandler` signature widens so `LandingResolver` can credit every member of a capturing block (A-19/A-51) without duplicating capture logic inside `BlockMove` (DESIGN.md §2.3's stated sharing goal for `LandingResolver`) |

@@ -77,4 +77,26 @@ class BoardTopologyTest {
         assertEquals(6, topology.step(5, Direction.CLOCKWISE));
         assertEquals(4, topology.step(5, Direction.COUNTERCLOCKWISE));
     }
+
+    @Test
+    @DisplayName("A-13: a clockwise piece's distance from home is steps-to-Approach plus 6")
+    void a13_distanceFromHomeClockwise() {
+        // Red Approach = 24 (A-02); 10 steps clockwise from cell 14 reaches it, then 6 more to Home.
+        assertEquals(16, topology.distanceFromHome(Colour.RED, Direction.CLOCKWISE, 14, 0));
+    }
+
+    @Test
+    @DisplayName("A-13/A-08: a counterclockwise piece past its first crossing needs one more lap before the real one")
+    void a13_distanceFromHomeCounterclockwiseBeforeFirstCrossing() {
+        // Red Approach = 24; sitting exactly on it with no crossings yet still needs a full
+        // 52-cell lap before the crossing that counts (A-08), plus the final 6 to Home.
+        assertEquals(58, topology.distanceFromHome(Colour.RED, Direction.COUNTERCLOCKWISE, 24, 0));
+    }
+
+    @Test
+    @DisplayName("A-13/A-08: a counterclockwise piece on/after its first crossing is simply steps-to-Approach plus 6")
+    void a13_distanceFromHomeCounterclockwiseAfterFirstCrossing() {
+        // Red Approach = 24; sitting exactly on it with one crossing already made needs only the final 6.
+        assertEquals(6, topology.distanceFromHome(Colour.RED, Direction.COUNTERCLOCKWISE, 24, 1));
+    }
 }

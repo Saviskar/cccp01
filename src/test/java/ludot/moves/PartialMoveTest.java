@@ -20,6 +20,7 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -59,7 +60,7 @@ class PartialMoveTest {
         PieceId blocker = new PieceId(Colour.GREEN, 1);
         Move move = new PartialMove(
                 id, new OnTrack(0), new OnTrack(3), new OnTrack(6), blocker, 6, 3, Direction.CLOCKWISE, false, false,
-                false);
+                false, false);
 
         move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN));
 
@@ -74,7 +75,7 @@ class PartialMoveTest {
         PieceId blocker = new PieceId(Colour.GREEN, 1);
         Move move = new PartialMove(
                 id, new OnTrack(0), new OnTrack(3), new OnTrack(6), blocker, 6, 3, Direction.CLOCKWISE, false, false,
-                false);
+                false, false);
 
         move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN));
 
@@ -106,7 +107,7 @@ class PartialMoveTest {
         board.assignDirection(id, Direction.COUNTERCLOCKWISE);
         Move move = new PartialMove(
                 id, new OnTrack(10), new OnTrack(9), new OnTrack(6), new PieceId(Colour.GREEN, 1), 4, 1,
-                Direction.COUNTERCLOCKWISE, false, false, true);
+                Direction.COUNTERCLOCKWISE, false, false, false, true);
 
         move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN));
 
@@ -120,7 +121,7 @@ class PartialMoveTest {
         board.moveTo(id, new OnTrack(0));
         Move move = new PartialMove(
                 id, new OnTrack(0), new OnTrack(3), new OnTrack(6), new PieceId(Colour.GREEN, 1), 6, 3,
-                Direction.CLOCKWISE, false, false, false);
+                Direction.CLOCKWISE, false, false, false, false);
 
         move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN));
 
@@ -133,11 +134,11 @@ class PartialMoveTest {
         PieceId id = new PieceId(Colour.RED, 1);
         board.moveTo(id, new OnTrack(0));
         Position destination = new OnTrack(3);
-        when(landingHandler.resolveLanding(id, destination, board, events))
+        when(landingHandler.resolveLanding(List.of(id), destination, board, events))
                 .thenReturn(new LandingResult(true, Optional.of(new PieceId(Colour.BLUE, 1))));
         Move move = new PartialMove(
                 id, new OnTrack(0), destination, new OnTrack(6), new PieceId(Colour.GREEN, 1), 6, 3,
-                Direction.CLOCKWISE, true, false, false);
+                Direction.CLOCKWISE, true, false, false, false);
 
         MoveResult result = move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN));
 
@@ -145,7 +146,7 @@ class PartialMoveTest {
         InOrder order = inOrder(listener, landingHandler);
         order.verify(listener).onEvent(any(PieceBlocked.class));
         order.verify(listener).onEvent(any(PiecePartiallyMoved.class));
-        order.verify(landingHandler).resolveLanding(id, destination, board, events);
+        order.verify(landingHandler).resolveLanding(List.of(id), destination, board, events);
     }
 
     @Test
@@ -155,7 +156,7 @@ class PartialMoveTest {
         board.moveTo(id, new OnTrack(0));
         Move move = new PartialMove(
                 id, new OnTrack(0), new OnTrack(3), new OnTrack(6), new PieceId(Colour.GREEN, 1), 6, 3,
-                Direction.CLOCKWISE, false, false, false);
+                Direction.CLOCKWISE, false, false, false, false);
         Coin coin = mock(Coin.class);
 
         move.execute(new MoveContext(board, events, landingHandler, coin));
