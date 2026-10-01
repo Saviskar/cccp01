@@ -16,10 +16,10 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Walks a piece's route one cell at a time (Rule 9/10), so later phases can
- * inspect or branch on individual cells along the way: T-1 counterclockwise
- * routing and extra laps (phase 4a), block obstruction (phase 4c), and T-7
- * eligibility gating the approach-to-home-straight transition (phase 4f).
+ * Walks a piece's route one cell at a time (Rule 9/10, T-1, T-7): T-1
+ * counterclockwise routing and extra laps (phase 4a), block obstruction
+ * (phase 4c), and T-7 eligibility gating the approach-to-home-straight
+ * transition on the piece's capture count (phase 4f).
  */
 public final class MovementCalculator {
 
@@ -27,16 +27,28 @@ public final class MovementCalculator {
     // its Approach this many times without entering (i.e. from the second crossing onward).
     private static final int CROSSINGS_REQUIRED_FOR_HOME_STRAIGHT = 1;
 
+    // A-07/T-7: a piece may enter the home straight only once it has captured at least
+    // one opponent piece.
+    private static final int CAPTURES_REQUIRED_FOR_HOME_STRAIGHT = 1;
+
     /**
+     * @param from                 the piece's current position
+     * @param steps                number of cells to walk (the roll, or an effect-adjusted value)
+     * @param colour               the piece's colour, used for Approach/X lookups
+     * @param direction            clockwise or counterclockwise (A-12)
      * @param ccwApproachCrossings the piece's crossing count (A-08) entering this move; irrelevant
      *                             for {@link Direction#CLOCKWISE}, which has no eligibility gate.
+     * @param captureCount         the piece's capture count (A-07/T-7) entering this move; a piece
+     *                             below {@link #CAPTURES_REQUIRED_FOR_HOME_STRAIGHT} continues around
+     *                             the standard track instead of entering the home straight.
+     * @param topology             board geometry used for stepping and Approach/X lookups
      * @param board                consulted for opponent blocks along the way (T-3/A-16); own-colour
      *                             blocks never obstruct (A-15), and home-straight cells are never
      *                             checked, since no opposing piece can ever be there (A-10).
      */
     public RouteResult walk(
             Position from, int steps, Colour colour, Direction direction, int ccwApproachCrossings,
-            BoardTopology topology, BoardState board) {
+            int captureCount, BoardTopology topology, BoardState board) {
         WalkState state = new WalkState(from, ccwApproachCrossings, false, Optional.empty());
         for (int i = 0; i < steps; i++) {
             if (state.current() instanceof AtHome) {
@@ -44,7 +56,7 @@ public final class MovementCalculator {
                 // is illegal either way, and there is no valid intended destination to report.
                 return new RouteResult.Overshoot();
             }
-            state = advance(state, i, colour, direction, topology, board);
+            state = advance(state, i, colour, direction, captureCount, topology, board);
         }
         return state.toRouteResult();
     }
@@ -52,9 +64,10 @@ public final class MovementCalculator {
     // Performs one step of the walk, carrying forward whether any obstruction has already
     // been found and how many Approach crossings have accumulated so far (A-08).
     private WalkState advance(
-            WalkState state, int cellsWalkedSoFar, Colour colour, Direction direction, BoardTopology topology,
-            BoardState board) {
-        StepOutcome outcome = stepOnce(state.current(), colour, direction, state.crossings(), topology);
+            WalkState state, int cellsWalkedSoFar, Colour colour, Direction direction, int captureCount,
+            BoardTopology topology, BoardState board) {
+        Eligibility eligibility = new Eligibility(state.crossings(), captureCount);
+        StepOutcome outcome = stepOnce(state.current(), colour, direction, eligibility, topology);
         Optional<ObstructionPoint> obstruction = state.firstObstruction().isPresent()
                 ? state.firstObstruction()
                 : detectObstruction(
@@ -107,9 +120,9 @@ public final class MovementCalculator {
     }
 
     private StepOutcome stepOnce(
-            Position current, Colour colour, Direction direction, int ccwApproachCrossings, BoardTopology topology) {
+            Position current, Colour colour, Direction direction, Eligibility eligibility, BoardTopology topology) {
         return switch (current) {
-            case OnTrack(int index) -> stepOnTrack(index, colour, direction, ccwApproachCrossings, topology);
+            case OnTrack(int index) -> stepOnTrack(index, colour, direction, eligibility, topology);
             case InHomeStraight(int cell) -> new StepOutcome(cell == BoardTopology.HOME_STRAIGHT_LENGTH - 1
                     ? new AtHome()
                     : new InHomeStraight(cell + 1), false);
@@ -120,18 +133,30 @@ public final class MovementCalculator {
     }
 
     private StepOutcome stepOnTrack(
-            int index, Colour colour, Direction direction, int ccwApproachCrossings, BoardTopology topology) {
+            int index, Colour colour, Direction direction, Eligibility eligibility, BoardTopology topology) {
         if (index != topology.approachIndex(colour)) {
             return new StepOutcome(new OnTrack(topology.step(index, direction)), false);
         }
-        // Rule 9: clockwise always enters. A-08: counterclockwise only from its second
-        // crossing onward; the first crossing continues around the standard track instead.
-        boolean entersHomeStraight =
-                direction == Direction.CLOCKWISE || ccwApproachCrossings >= CROSSINGS_REQUIRED_FOR_HOME_STRAIGHT;
-        if (entersHomeStraight) {
+        // Rule 9: clockwise always allows entry, subject to A-07 below. A-08: counterclockwise
+        // only from its second crossing onward; the first crossing continues around the standard
+        // track instead.
+        boolean directionAllowsEntry = direction == Direction.CLOCKWISE
+                || eligibility.ccwApproachCrossings() >= CROSSINGS_REQUIRED_FOR_HOME_STRAIGHT;
+        // A-07/T-7: entry additionally requires at least one capture, independently of direction.
+        boolean hasRequiredCapture = eligibility.captureCount() >= CAPTURES_REQUIRED_FOR_HOME_STRAIGHT;
+        if (directionAllowsEntry && hasRequiredCapture) {
             return new StepOutcome(new InHomeStraight(0), false);
         }
-        return new StepOutcome(new OnTrack(topology.step(index, direction)), true);
+        // A-08 ties the crossing counter to counterclockwise movement specifically, so a
+        // clockwise piece turned back only by A-07 must not record a crossing.
+        boolean countsAsApproachCrossing = direction == Direction.COUNTERCLOCKWISE;
+        return new StepOutcome(new OnTrack(topology.step(index, direction)), countsAsApproachCrossing);
+    }
+
+    // Bundles the two home-straight-eligibility inputs (A-07, A-08) so they travel together
+    // through stepOnce/stepOnTrack, rather than as two adjacent same-typed ints that could be
+    // swapped at a call site without a compile error.
+    private record Eligibility(int ccwApproachCrossings, int captureCount) {
     }
 
     private record StepOutcome(Position position, boolean crossedApproachWithoutEntering) {

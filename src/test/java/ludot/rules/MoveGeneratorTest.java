@@ -236,6 +236,7 @@ class MoveGeneratorTest {
         board.moveTo(id, new OnTrack(approach));
         board.assignDirection(id, Direction.COUNTERCLOCKWISE);
         board.recordApproachCrossing(id);
+        board.recordCapture(id); // A-07: isolates A-08's crossing behaviour from the capture gate
 
         List<Move> moves = legalMovesOnly(Colour.RED, 1);
 
@@ -785,5 +786,36 @@ class MoveGeneratorTest {
         ForcedMoveOutcome.Movable movable = assertInstanceOf(ForcedMoveOutcome.Movable.class, outcome);
         StepMove move = assertInstanceOf(StepMove.class, movable.move());
         assertEquals(new AtHome(), move.destination());
+    }
+
+    @Test
+    @DisplayName("A-07: a piece with no captures generates a step that continues past the Approach")
+    void a07_ineligiblePieceGeneratesAStepThatContinuesPastApproach() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        int approach = topology.approachIndex(Colour.RED);
+        board.moveTo(id, new OnTrack(approach));
+        board.assignDirection(id, Direction.CLOCKWISE);
+
+        List<Move> moves = legalMovesOnly(Colour.RED, 1);
+
+        StepMove move = assertInstanceOf(
+                StepMove.class, moves.stream().filter(m -> m.pieceIds().contains(id)).findFirst().orElseThrow());
+        assertEquals(new OnTrack(topology.step(approach, Direction.CLOCKWISE)), move.destination());
+    }
+
+    @Test
+    @DisplayName("A-07: a piece becomes eligible for the home straight once it has captured")
+    void a07_eligiblePieceAfterCaptureEntersHomeStraight() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        int approach = topology.approachIndex(Colour.RED);
+        board.moveTo(id, new OnTrack(approach));
+        board.assignDirection(id, Direction.CLOCKWISE);
+        board.recordCapture(id);
+
+        List<Move> moves = legalMovesOnly(Colour.RED, 1);
+
+        StepMove move = assertInstanceOf(
+                StepMove.class, moves.stream().filter(m -> m.pieceIds().contains(id)).findFirst().orElseThrow());
+        assertEquals(new InHomeStraight(0), move.destination());
     }
 }

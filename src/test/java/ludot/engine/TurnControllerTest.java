@@ -204,6 +204,7 @@ class TurnControllerTest {
         PieceId last = new PieceId(Colour.RED, 1);
         board.moveTo(last, new OnTrack(topology.approachIndex(Colour.RED)));
         board.assignDirection(last, Direction.CLOCKWISE);
+        board.recordCapture(last); // A-07: eligible to enter the home straight
         when(dice.roll()).thenReturn(6); // exactly 6 steps from Approach reaches Home
 
         controller.playTurn(player, board, standings, view());

@@ -89,7 +89,8 @@ public final class MoveGenerator {
         // T-5/A-21 fact: true when this piece's cell is currently a block of its own colour.
         boolean breaksBlock = piece.position() instanceof OnTrack(int idx) && board.isBlock(idx);
         RouteResult result = movementCalculator.walk(
-                piece.position(), roll, colour, direction, piece.ccwApproachCrossings(), topology, board);
+                piece.position(), roll, colour, direction, piece.ccwApproachCrossings(), piece.captureCount(),
+                topology, board);
         switch (result) {
             case RouteResult.Overshoot ignored -> { } // Rule 10: overshoot is illegal.
             case RouteResult.Obstructed obs ->
@@ -231,7 +232,8 @@ public final class MoveGenerator {
             BoardTopology topology) {
         Colour colour = piece.id().colour();
         RouteResult result = movementCalculator.walk(
-                piece.position(), units, colour, direction, piece.ccwApproachCrossings(), topology, board);
+                piece.position(), units, colour, direction, piece.ccwApproachCrossings(), piece.captureCount(),
+                topology, board);
         return switch (result) {
             case RouteResult.Overshoot ignored -> throw new IllegalStateException(
                     "T-6 forced move cannot overshoot: on-track distance to home is always >= 6 (A-05), "
