@@ -65,7 +65,7 @@ Rationale: the brief's own numbering convention runs clockwise.
 
 **A-17 — T-4 block move.** ⚠️ A block may move as a unit by `floor(roll / n)` cells, where n is the block size. The remainder is discarded, and a result of 0 makes the block move illegal. Direction: the members' shared direction if they all agree; otherwise the direction of the member farthest from home (A-13), with a tie going to clockwise.
 
-**A-18 — Block move limits.** Block moves stay on the standard track and never enter a home straight. Pieces must break off individually to go home. A block containing a Beta-restricted piece (A-31) cannot make a block move. Alpha modifiers (A-30) do not apply to block moves.
+**A-18 — Block move limits.** Block moves stay on the standard track and never enter a home straight. Pieces must break off individually to go home. A block containing a Beta-restricted piece (A-33) cannot make a block move. Alpha modifiers (A-32) do not apply to block moves.
 
 **A-19 — Block captures a single piece.** A block landing on a single opponent piece captures it, and every member's capture count increases by 1.
 
@@ -184,3 +184,20 @@ and the capture grants a single bonus roll (A-23).
 **A-43 — Message text.** All messages are reproduced **verbatim** from Section 3 of the brief, including its wording quirks (e.g. "[Number]/4 on pieces on the board"). Colour names are capitalised when they begin a sentence.
 
 **A-44 — Messages not in the brief.** Events with no specified message (e.g. an illegal overshoot, a coin toss result, a block move, T-6 breaks, the round guard) use clearly worded additional messages that follow the same style.
+
+---
+
+## 9. Phase 4j Interactions (Beta Briefing, T-13)
+
+**A-56 — T-13 streak scope and multi-piece release.** The three-consecutive-3s streak (A-33)
+is tracked per colour, counting only rolls made while at least one of that colour's pieces is
+Beta-restricted; it resets to 0 whenever the colour has no restricted piece, and also resets to
+0 immediately after triggering. When the streak reaches three, every one of that colour's
+currently Beta-restricted pieces is teleported to base (A-26), not just one.
+
+**A-57 — T-6 interaction with a Beta-restricted block member.** If a block that must break under
+T-6 (A-22) contains one or more Beta-restricted members (A-33), those members are the ones that
+stay; every unrestricted member leaves, sharing the 6 units equally in its original direction (6
+for 1 leaver, 3 each for 2 leavers, 2 each for 3 leavers). If no member is restricted, A-22
+applies unchanged. If every member is restricted, the block is omitted from the break plan
+entirely — nothing breaks, and no `BlockadeBroken` is published for it.

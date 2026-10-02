@@ -4,6 +4,7 @@ import ludot.board.BoardState;
 import ludot.board.BoardTopology;
 import ludot.board.GameView;
 import ludot.domain.AtHome;
+import ludot.domain.Briefing;
 import ludot.domain.Colour;
 import ludot.domain.Direction;
 import ludot.domain.InBase;
@@ -11,7 +12,9 @@ import ludot.domain.InHomeStraight;
 import ludot.domain.MysteryOutcomeKind;
 import ludot.domain.OnTrack;
 import ludot.domain.PieceId;
+import ludot.domain.Position;
 import ludot.events.BlockadeBroken;
+import ludot.events.BriefingStreakTriggered;
 import ludot.events.EventBus;
 import ludot.events.GameEventListener;
 import ludot.events.NoLegalMove;
@@ -410,7 +413,7 @@ class TurnControllerTest {
         verify(listener).onEvent(captor.capture());
         assertEquals(Colour.RED, captor.getValue().colour());
         assertEquals(10, captor.getValue().cell());
-        assertEquals(staying, captor.getValue().staying());
+        assertEquals(List.of(staying), captor.getValue().staying());
         assertEquals(List.of(leaving), captor.getValue().leaving());
         assertEquals(6, captor.getValue().unitsEach());
     }
@@ -650,5 +653,187 @@ class TurnControllerTest {
         assertEquals(new OnTrack(topology.xIndex(Colour.RED)), board.piece(leaving).position());
         assertEquals(new InBase(), board.piece(opponent).position());
         assertEquals(1, board.piece(leaving).captureCount());
+    }
+
+    @Test
+    @DisplayName("t13_a33: a Beta-restricted piece offers no move at all")
+    void t13_a33_restrictedPieceOffersNoMove() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new OnTrack(10));
+        board.assignDirection(id, Direction.CLOCKWISE);
+        board.applyEffect(id, new Briefing());
+        when(dice.roll()).thenReturn(4);
+
+        controller.playTurn(player, board, standings, view());
+
+        assertEquals(new OnTrack(10), board.piece(id).position());
+        verify(listener).onEvent(any(NoLegalMove.class));
+    }
+
+    @Test
+    @DisplayName("t13_a56: three consecutive 3s across separate turns send a Beta-restricted piece to base")
+    void t13_a56_threeThreesSendsRestrictedPieceToBase() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new OnTrack(10));
+        board.assignDirection(id, Direction.CLOCKWISE);
+        board.applyEffect(id, new Briefing());
+        when(dice.roll()).thenReturn(3); // every roll returns 3; each turn consumes exactly one (non-six, no capture)
+
+        controller.playTurn(player, board, standings, view()); // 1st three
+        controller.playTurn(player, board, standings, view()); // 2nd three
+        controller.playTurn(player, board, standings, view()); // 3rd three -- triggers
+
+        assertEquals(new InBase(), board.piece(id).position());
+        verify(listener).onEvent(any(BriefingStreakTriggered.class));
+    }
+
+    @Test
+    @DisplayName("t13_a56: releases every currently Beta-restricted piece of the colour, not just one")
+    void t13_a56_threeThreesReleasesEveryRestrictedPieceOfTheColour() {
+        PieceId restricted1 = new PieceId(Colour.RED, 1);
+        PieceId restricted2 = new PieceId(Colour.RED, 2);
+        board.moveTo(restricted1, new OnTrack(10));
+        board.assignDirection(restricted1, Direction.CLOCKWISE);
+        board.applyEffect(restricted1, new Briefing());
+        board.moveTo(restricted2, new OnTrack(20));
+        board.assignDirection(restricted2, Direction.CLOCKWISE);
+        board.applyEffect(restricted2, new Briefing());
+        when(dice.roll()).thenReturn(3);
+
+        controller.playTurn(player, board, standings, view());
+        controller.playTurn(player, board, standings, view());
+        controller.playTurn(player, board, standings, view());
+
+        assertEquals(new InBase(), board.piece(restricted1).position());
+        assertEquals(new InBase(), board.piece(restricted2).position());
+        verify(listener, times(2)).onEvent(any(BriefingStreakTriggered.class));
+    }
+
+    @Test
+    @DisplayName("t13_a56: the streak only counts while a piece is restricted -- rolls before restriction "
+            + "don't carry over")
+    void t13_a56_streakOnlyCountsWhileAPieceIsRestricted() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new OnTrack(10));
+        board.assignDirection(id, Direction.CLOCKWISE);
+        when(dice.roll()).thenReturn(3);
+
+        controller.playTurn(player, board, standings, view()); // 1st three, unrestricted: doesn't count
+        controller.playTurn(player, board, standings, view()); // 2nd three, unrestricted: doesn't count
+        board.applyEffect(id, new Briefing());
+        Position afterRestriction = board.piece(id).position();
+
+        controller.playTurn(player, board, standings, view()); // 1st three while restricted
+        controller.playTurn(player, board, standings, view()); // 2nd three while restricted
+
+        assertEquals(afterRestriction, board.piece(id).position()); // not yet released
+        verify(listener, never()).onEvent(any(BriefingStreakTriggered.class));
+
+        controller.playTurn(player, board, standings, view()); // 3rd three while restricted -- triggers
+
+        assertEquals(new InBase(), board.piece(id).position());
+        verify(listener).onEvent(any(BriefingStreakTriggered.class));
+    }
+
+    @Test
+    @DisplayName("t13_a56: the streak resets to 0 after triggering -- a later restricted piece needs a fresh "
+            + "three-in-a-row")
+    void t13_a56_streakResetsAfterTriggering() {
+        PieceId first = new PieceId(Colour.RED, 1);
+        PieceId second = new PieceId(Colour.RED, 2);
+        board.moveTo(first, new OnTrack(10));
+        board.assignDirection(first, Direction.CLOCKWISE);
+        board.applyEffect(first, new Briefing());
+        when(dice.roll()).thenReturn(3);
+
+        controller.playTurn(player, board, standings, view());
+        controller.playTurn(player, board, standings, view());
+        controller.playTurn(player, board, standings, view()); // triggers: first released
+
+        assertEquals(new InBase(), board.piece(first).position());
+
+        board.moveTo(second, new OnTrack(20));
+        board.assignDirection(second, Direction.CLOCKWISE);
+        board.applyEffect(second, new Briefing());
+
+        controller.playTurn(player, board, standings, view()); // 1st three for second's streak
+        controller.playTurn(player, board, standings, view()); // 2nd three for second's streak
+
+        assertEquals(new OnTrack(20), board.piece(second).position()); // not yet released after only 2
+
+        controller.playTurn(player, board, standings, view()); // 3rd three -- releases second
+
+        assertEquals(new InBase(), board.piece(second).position());
+    }
+
+    @Test
+    @DisplayName("t13_a33: a non-3 roll resets an in-progress streak")
+    void t13_a33_nonThreeRollResetsAnInProgressStreak() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new OnTrack(10));
+        board.assignDirection(id, Direction.CLOCKWISE);
+        board.applyEffect(id, new Briefing());
+        when(dice.roll()).thenReturn(3, 3, 4, 3, 3, 3);
+
+        for (int i = 0; i < 5; i++) {
+            controller.playTurn(player, board, standings, view());
+        }
+        assertEquals(new OnTrack(10), board.piece(id).position()); // the "4" reset the streak; not yet released
+
+        controller.playTurn(player, board, standings, view()); // completes a fresh three-in-a-row
+
+        assertEquals(new InBase(), board.piece(id).position());
+    }
+
+    @Test
+    @DisplayName("t13_a57: a third consecutive six with every block member Beta-restricted breaks nothing")
+    void t13_a57_allRestrictedBlockPublishesNoBlockadeBroken() {
+        PieceId member1 = new PieceId(Colour.RED, 1);
+        PieceId member2 = new PieceId(Colour.RED, 2);
+        board.moveTo(new PieceId(Colour.RED, 3), new AtHome());
+        board.moveTo(new PieceId(Colour.RED, 4), new AtHome());
+        board.moveTo(member1, new OnTrack(10));
+        board.assignDirection(member1, Direction.CLOCKWISE);
+        board.applyEffect(member1, new Briefing());
+        board.moveTo(member2, new OnTrack(10));
+        board.assignDirection(member2, Direction.CLOCKWISE);
+        board.applyEffect(member2, new Briefing());
+        when(dice.roll()).thenReturn(6, 6, 6);
+
+        controller.playTurn(player, board, standings, view());
+
+        verify(dice, times(3)).roll();
+        verify(listener, never()).onEvent(any(BlockadeBroken.class));
+        assertEquals(new OnTrack(10), board.piece(member1).position());
+        assertEquals(new OnTrack(10), board.piece(member2).position());
+    }
+
+    @Test
+    @DisplayName("t13_a57: a third consecutive six partially breaks a block with one Beta-restricted "
+            + "member, which stays while the other leaves all 6 units")
+    void t13_a57_partialBreakRestrictedMemberStaysOtherLeavesSixUnits() {
+        PieceId absorber = new PieceId(Colour.RED, 1);
+        PieceId staying = new PieceId(Colour.RED, 3);
+        PieceId leaving = new PieceId(Colour.RED, 4);
+        board.moveTo(new PieceId(Colour.RED, 2), new AtHome());
+        board.moveTo(absorber, new OnTrack(0));
+        board.assignDirection(absorber, Direction.CLOCKWISE);
+        board.moveTo(staying, new OnTrack(10));
+        board.assignDirection(staying, Direction.CLOCKWISE);
+        board.applyEffect(staying, new Briefing());
+        board.moveTo(leaving, new OnTrack(10));
+        board.assignDirection(leaving, Direction.CLOCKWISE);
+        when(dice.roll()).thenReturn(6, 6, 6);
+
+        controller.playTurn(player, board, standings, view());
+
+        verify(dice, times(3)).roll(); // A-22: the turn has ended, no bonus roll
+        assertEquals(new OnTrack(10), board.piece(staying).position());
+        assertEquals(new OnTrack(16), board.piece(leaving).position());
+        ArgumentCaptor<BlockadeBroken> captor = ArgumentCaptor.forClass(BlockadeBroken.class);
+        verify(listener).onEvent(captor.capture());
+        assertEquals(List.of(staying), captor.getValue().staying());
+        assertEquals(List.of(leaving), captor.getValue().leaving());
+        assertEquals(6, captor.getValue().unitsEach());
     }
 }

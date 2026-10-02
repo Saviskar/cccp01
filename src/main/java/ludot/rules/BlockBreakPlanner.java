@@ -10,6 +10,7 @@ import ludot.domain.PieceId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * T-6/A-22: snapshots which blocks a colour owns at the moment a third consecutive six lands, and
@@ -25,19 +26,36 @@ public final class BlockBreakPlanner {
     public List<BlockBreak> plan(Colour colour, BoardState board, BoardTopology topology) {
         List<BlockBreak> breaks = new ArrayList<>();
         for (int cell : board.blockCellsOf(colour)) {
-            breaks.add(planBreak(colour, cell, board, topology));
+            planBreak(colour, cell, board, topology).ifPresent(breaks::add);
         }
         return breaks;
     }
 
-    private BlockBreak planBreak(Colour colour, int cell, BoardState board, BoardTopology topology) {
+    private Optional<BlockBreak> planBreak(Colour colour, int cell, BoardState board, BoardTopology topology) {
         List<PieceId> members = board.piecesAt(cell);
-        PieceId staying = farthestMember(members, colour, cell, board, topology);
+        List<PieceId> restricted = members.stream().filter(id -> !board.piece(id).effect().canMove()).toList();
+        if (restricted.size() == members.size()) {
+            return Optional.empty(); // A-57: every member restricted -- the block does not break at all.
+        }
+        if (restricted.isEmpty()) {
+            PieceId staying = farthestMember(members, colour, cell, board, topology);
+            List<PieceId> leaving = members.stream()
+                    .filter(id -> !id.equals(staying))
+                    .sorted(Comparator.comparingInt(PieceId::number))
+                    .toList();
+            return Optional.of(buildBreak(cell, List.of(staying), leaving));
+        }
+        // A-57: Beta-restricted members stay; every unrestricted member leaves.
         List<PieceId> leaving = members.stream()
-                .filter(id -> !id.equals(staying))
-                .sorted(Comparator.comparingInt(PieceId::number)) // A-40-style determinism
+                .filter(id -> !restricted.contains(id))
+                .sorted(Comparator.comparingInt(PieceId::number))
                 .toList();
-        int unitsEach = TOTAL_BREAK_UNITS / leaving.size(); // exact for block sizes 2-4 (A-22)
+        List<PieceId> staying = restricted.stream().sorted(Comparator.comparingInt(PieceId::number)).toList();
+        return Optional.of(buildBreak(cell, staying, leaving));
+    }
+
+    private BlockBreak buildBreak(int cell, List<PieceId> staying, List<PieceId> leaving) {
+        int unitsEach = TOTAL_BREAK_UNITS / leaving.size(); // exact for block sizes 2-4 (A-22); leaving is never empty here.
         return new BlockBreak(cell, staying, leaving, unitsEach);
     }
 

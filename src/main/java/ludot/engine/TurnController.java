@@ -8,6 +8,7 @@ import ludot.domain.Colour;
 import ludot.domain.Direction;
 import ludot.domain.PieceId;
 import ludot.events.BlockadeBroken;
+import ludot.events.BriefingStreakTriggered;
 import ludot.events.DiceRolled;
 import ludot.events.EventBus;
 import ludot.events.NoLegalMove;
@@ -28,7 +29,9 @@ import ludot.rules.ForcedMoveOutcome;
 import ludot.rules.MoveGenerationResult;
 import ludot.rules.MoveGenerator;
 
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Plays one player's turn: the roll loop, the six-streak (Rule 4), T-2's
@@ -40,6 +43,8 @@ public final class TurnController {
     private static final int SIX = 6;
     private static final int THIRD_CONSECUTIVE_SIX = 3;
     private static final int PIECES_PER_COLOUR = 4;
+    private static final int BETA_STREAK_ROLL_VALUE = 3;
+    private static final int BETA_STREAK_THRESHOLD = 3;
 
     private final Dice dice;
     private final Coin coin;
@@ -49,6 +54,8 @@ public final class TurnController {
     private final LandingHandler landingHandler;
     private final BlockBreakPlanner blockBreakPlanner;
     private final MysteryHandler mysteryHandler;
+    // A-33/A-56: persists across turns and rounds for the life of one game, unlike sixStreak below.
+    private final Map<Colour, Integer> betaThreeStreaks = new EnumMap<>(Colour.class);
 
     public TurnController(
             Dice dice, Coin coin, MoveGenerator moveGenerator, BoardTopology topology, EventBus events,
@@ -69,6 +76,7 @@ public final class TurnController {
         while (true) {
             int roll = dice.roll();
             events.publish(new DiceRolled(colour, roll));
+            updateBetaThreeStreak(colour, roll, board);
             // A-24: resets on any non-six roll; a bonus roll earned via capture is a normal roll here too.
             sixStreak = roll == SIX ? sixStreak + 1 : 0;
             if (sixStreak == THIRD_CONSECUTIVE_SIX) {
@@ -88,6 +96,29 @@ public final class TurnController {
             // A-23: a six or a capture grants exactly one bonus roll; this is a single OR,
             // so a roll that is both a six and a capture still grants only one bonus roll.
         }
+    }
+
+    // A-33/A-56: tracked per colour, counting only while at least one of that colour's pieces is
+    // Beta-restricted; pinned at 0 otherwise. On the third consecutive 3, every currently-restricted
+    // piece of the colour is teleported to base, and the streak resets.
+    private void updateBetaThreeStreak(Colour colour, int roll, BoardState board) {
+        List<Piece> restricted = board.piecesOfColour(colour).stream()
+                .filter(piece -> !piece.effect().canMove())
+                .toList();
+        if (restricted.isEmpty()) {
+            betaThreeStreaks.put(colour, 0);
+            return;
+        }
+        int streak = roll == BETA_STREAK_ROLL_VALUE ? betaThreeStreaks.getOrDefault(colour, 0) + 1 : 0;
+        if (streak == BETA_STREAK_THRESHOLD) {
+            for (Piece piece : restricted) {
+                board.resetToBase(piece.id());
+                events.publish(new BriefingStreakTriggered(piece.id()));
+            }
+            betaThreeStreaks.put(colour, 0);
+            return;
+        }
+        betaThreeStreaks.put(colour, streak);
     }
 
     private RollOutcome playRoll(Player player, int roll, BoardState board, Standings standings, GameView view) {
