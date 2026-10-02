@@ -9,6 +9,7 @@ import ludot.domain.OnTrack;
 import ludot.domain.PieceId;
 import ludot.events.EventBus;
 import ludot.events.GameEventListener;
+import ludot.random.FirstItemPicker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,7 +36,7 @@ class TeleportToGammaTest {
         board = new BoardState();
         EventBus events = new EventBus();
         events.subscribe(listener);
-        context = new MysteryContext(board, topology, events, new LandingResolver());
+        context = new MysteryContext(board, topology, events, new LandingResolver(), new FirstItemPicker());
     }
 
     @Test

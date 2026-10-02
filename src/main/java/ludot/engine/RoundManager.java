@@ -35,11 +35,22 @@ public final class RoundManager {
                 turnController.playTurn(player, board, standings, view);
             }
         }
+        tickEffects(playersInOrder, board); // A-32/A-45: effects count down once per round
         // Section 3 doesn't exempt finished colours from the round-end status.
         for (Player player : playersInOrder) {
             reportStatus(player.colour(), board);
         }
         reportMysteryCellStatus(board);
+    }
+
+    // A-32: every piece's effect counts down once per round, regardless of whose turn it was;
+    // ticking a NoEffect piece is a harmless no-op.
+    private void tickEffects(List<Player> playersInOrder, BoardState board) {
+        for (Player player : playersInOrder) {
+            for (Piece piece : board.piecesOfColour(player.colour())) {
+                board.applyEffect(piece.id(), piece.effect().onRoundEnd());
+            }
+        }
     }
 
     // A-28: advances the mystery cell's timer once per round, after the per-colour status.

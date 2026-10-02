@@ -84,7 +84,7 @@ class StepMoveTest {
         assertEquals(id, event.pieceId());
         assertEquals(new OnTrack(10), event.from());
         assertEquals(new OnTrack(14), event.to());
-        assertEquals(4, event.rollValue());
+        assertEquals(4, event.units());
         assertEquals(Direction.CLOCKWISE, event.direction());
     }
 

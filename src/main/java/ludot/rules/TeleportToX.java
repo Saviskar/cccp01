@@ -14,6 +14,7 @@ public final class TeleportToX implements MysteryOutcome {
     @Override
     public boolean apply(PieceId pieceId, MysteryContext context) {
         int index = context.topology().xIndex(pieceId.colour());
-        return MysteryLanding.landAt(pieceId, index, kind(), context.board(), context.landingHandler(), context.events());
+        return MysteryLanding.landAt(pieceId, index, kind(), context.board(), context.landingHandler(), context.events())
+                .captured();
     }
 }

@@ -11,6 +11,7 @@ import ludot.domain.PieceId;
 import ludot.events.EventBus;
 import ludot.events.GameEventListener;
 import ludot.events.PieceTeleported;
+import ludot.random.FirstItemPicker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,7 +41,7 @@ class TeleportToBaseTest {
         board = new BoardState();
         EventBus events = new EventBus();
         events.subscribe(listener);
-        context = new MysteryContext(board, new BoardTopology(), events, new LandingResolver());
+        context = new MysteryContext(board, new BoardTopology(), events, new LandingResolver(), new FirstItemPicker());
     }
 
     @Test
