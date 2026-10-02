@@ -26,5 +26,7 @@ public sealed interface GameEvent permits
         MysteryCellStatusReported,
         MysteryCellTriggered,
         PieceTeleported,
-        AlphaEffectAssigned {
+        AlphaEffectAssigned,
+        BriefingAssigned,
+        BriefingStreakTriggered {
 }

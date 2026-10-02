@@ -1,9 +1,11 @@
 package ludot.rules;
 
 import ludot.board.BoardState;
+import ludot.domain.Briefing;
 import ludot.domain.Colour;
 import ludot.domain.Direction;
 import ludot.domain.InBase;
+import ludot.domain.NoEffect;
 import ludot.domain.OnTrack;
 import ludot.domain.PieceId;
 import ludot.events.EventBus;
@@ -108,6 +110,21 @@ class LandingResolverTest {
         assertEquals(Optional.empty(), board.piece(captured).originalDirection());
         assertEquals(0, board.piece(captured).captureCount());
         assertEquals(0, board.piece(captured).ccwApproachCrossings());
+    }
+
+    @Test
+    @DisplayName("t13_a33: a Beta-restricted piece can still be captured")
+    void t13_a33_betaRestrictedPieceCanStillBeCaptured() {
+        PieceId capturer = new PieceId(Colour.RED, 1);
+        PieceId captured = new PieceId(Colour.GREEN, 1);
+        board.moveTo(captured, new OnTrack(5));
+        board.applyEffect(captured, new Briefing());
+
+        resolver.resolveLanding(List.of(capturer), new OnTrack(5), board, events);
+
+        assertEquals(new InBase(), board.piece(captured).position());
+        assertEquals(new NoEffect(), board.piece(captured).effect()); // A-26: capture resets the effect too
+        assertEquals(1, board.piece(capturer).captureCount());
     }
 
     @Test

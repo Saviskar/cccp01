@@ -2,6 +2,7 @@ package ludot.rules;
 
 import ludot.board.BoardState;
 import ludot.board.BoardTopology;
+import ludot.domain.Briefing;
 import ludot.domain.Colour;
 import ludot.domain.Direction;
 import ludot.domain.OnTrack;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BlockBreakPlannerTest {
@@ -49,7 +51,7 @@ class BlockBreakPlannerTest {
         assertEquals(1, plan.size());
         BlockBreak blockBreak = plan.get(0);
         assertEquals(10, blockBreak.cell());
-        assertEquals(staying, blockBreak.staying());
+        assertEquals(List.of(staying), blockBreak.staying());
         assertEquals(List.of(leaving), blockBreak.leaving());
         assertEquals(6, blockBreak.unitsEach());
     }
@@ -71,7 +73,7 @@ class BlockBreakPlannerTest {
 
         assertEquals(1, plan.size());
         BlockBreak blockBreak = plan.get(0);
-        assertEquals(staying, blockBreak.staying());
+        assertEquals(List.of(staying), blockBreak.staying());
         assertEquals(List.of(leaving1, leaving2), blockBreak.leaving());
         assertEquals(3, blockBreak.unitsEach());
     }
@@ -96,7 +98,7 @@ class BlockBreakPlannerTest {
 
         assertEquals(1, plan.size());
         BlockBreak blockBreak = plan.get(0);
-        assertEquals(staying, blockBreak.staying());
+        assertEquals(List.of(staying), blockBreak.staying());
         assertEquals(List.of(leaving1, leaving2, leaving3), blockBreak.leaving());
         assertEquals(2, blockBreak.unitsEach());
     }
@@ -114,7 +116,7 @@ class BlockBreakPlannerTest {
         List<BlockBreak> plan = planner.plan(Colour.RED, board, topology);
 
         assertEquals(1, plan.size());
-        assertEquals(lower, plan.get(0).staying());
+        assertEquals(List.of(lower), plan.get(0).staying());
         assertEquals(List.of(higher), plan.get(0).leaving());
     }
 
@@ -139,9 +141,100 @@ class BlockBreakPlannerTest {
         assertEquals(2, plan.size());
         BlockBreak breakA = plan.stream().filter(b -> b.cell() == 10).findFirst().orElseThrow();
         BlockBreak breakB = plan.stream().filter(b -> b.cell() == 30).findFirst().orElseThrow();
-        assertEquals(stayingA, breakA.staying());
+        assertEquals(List.of(stayingA), breakA.staying());
         assertEquals(List.of(leavingA), breakA.leaving());
-        assertEquals(stayingB, breakB.staying());
+        assertEquals(List.of(stayingB), breakB.staying());
         assertEquals(List.of(leavingB), breakB.leaving());
+    }
+
+    @Test
+    @DisplayName("t13_a57: a block of two with one Beta-restricted member — the restricted member "
+            + "stays, the other leaves all 6 units")
+    void t13_a57_blockOfTwoWithOneRestricted_restrictedStaysOtherLeavesSixUnits() {
+        PieceId restricted = new PieceId(Colour.RED, 1);
+        PieceId unrestricted = new PieceId(Colour.RED, 2);
+        board.moveTo(restricted, new OnTrack(10));
+        board.assignDirection(restricted, Direction.CLOCKWISE);
+        board.applyEffect(restricted, new Briefing());
+        board.moveTo(unrestricted, new OnTrack(10));
+        board.assignDirection(unrestricted, Direction.CLOCKWISE);
+
+        List<BlockBreak> plan = planner.plan(Colour.RED, board, topology);
+
+        assertEquals(1, plan.size());
+        BlockBreak blockBreak = plan.get(0);
+        assertEquals(List.of(restricted), blockBreak.staying());
+        assertEquals(List.of(unrestricted), blockBreak.leaving());
+        assertEquals(6, blockBreak.unitsEach());
+    }
+
+    @Test
+    @DisplayName("t13_a57: a block of three with one Beta-restricted member — the restricted member "
+            + "stays, the other two split 6 units as 3 and 3")
+    void t13_a57_blockOfThreeWithOneRestricted_restrictedStaysOtherTwoSplitThreeEach() {
+        PieceId restricted = new PieceId(Colour.RED, 1);
+        PieceId leaving1 = new PieceId(Colour.RED, 2);
+        PieceId leaving2 = new PieceId(Colour.RED, 3);
+        board.moveTo(restricted, new OnTrack(10));
+        board.assignDirection(restricted, Direction.CLOCKWISE);
+        board.applyEffect(restricted, new Briefing());
+        board.moveTo(leaving1, new OnTrack(10));
+        board.assignDirection(leaving1, Direction.CLOCKWISE);
+        board.moveTo(leaving2, new OnTrack(10));
+        board.assignDirection(leaving2, Direction.CLOCKWISE);
+
+        List<BlockBreak> plan = planner.plan(Colour.RED, board, topology);
+
+        assertEquals(1, plan.size());
+        BlockBreak blockBreak = plan.get(0);
+        assertEquals(List.of(restricted), blockBreak.staying());
+        assertEquals(List.of(leaving1, leaving2), blockBreak.leaving());
+        assertEquals(3, blockBreak.unitsEach());
+    }
+
+    @Test
+    @DisplayName("t13_a57: a block where every member is Beta-restricted is omitted from the plan entirely")
+    void t13_a57_allMembersRestricted_blockOmittedFromPlan() {
+        PieceId member1 = new PieceId(Colour.RED, 1);
+        PieceId member2 = new PieceId(Colour.RED, 2);
+        board.moveTo(member1, new OnTrack(10));
+        board.assignDirection(member1, Direction.CLOCKWISE);
+        board.applyEffect(member1, new Briefing());
+        board.moveTo(member2, new OnTrack(10));
+        board.assignDirection(member2, Direction.CLOCKWISE);
+        board.applyEffect(member2, new Briefing());
+
+        List<BlockBreak> plan = planner.plan(Colour.RED, board, topology);
+
+        assertFalse(plan.stream().anyMatch(b -> b.cell() == 10));
+        assertTrue(plan.isEmpty());
+    }
+
+    @Test
+    @DisplayName("t13_a57: a block of four with two Beta-restricted members — both stay, the other two "
+            + "split 6 units as 3 and 3")
+    void t13_a57_blockOfFourWithTwoRestricted_bothStayOtherTwoSplitThreeEach() {
+        PieceId restricted1 = new PieceId(Colour.RED, 1);
+        PieceId restricted2 = new PieceId(Colour.RED, 2);
+        PieceId leaving1 = new PieceId(Colour.RED, 3);
+        PieceId leaving2 = new PieceId(Colour.RED, 4);
+        board.moveTo(restricted1, new OnTrack(10));
+        board.assignDirection(restricted1, Direction.CLOCKWISE);
+        board.applyEffect(restricted1, new Briefing());
+        board.moveTo(restricted2, new OnTrack(10));
+        board.assignDirection(restricted2, Direction.CLOCKWISE);
+        board.applyEffect(restricted2, new Briefing());
+        board.moveTo(leaving1, new OnTrack(10));
+        board.assignDirection(leaving1, Direction.CLOCKWISE);
+        board.moveTo(leaving2, new OnTrack(10));
+        board.assignDirection(leaving2, Direction.CLOCKWISE);
+
+        List<BlockBreak> plan = planner.plan(Colour.RED, board, topology);
+
+        assertEquals(1, plan.size());
+        BlockBreak blockBreak = plan.get(0);
+        assertEquals(List.of(restricted1, restricted2), blockBreak.staying());
+        assertEquals(List.of(leaving1, leaving2), blockBreak.leaving());
+        assertEquals(3, blockBreak.unitsEach());
     }
 }

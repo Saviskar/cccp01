@@ -3,6 +3,7 @@ package ludot.rules;
 import ludot.board.BoardState;
 import ludot.board.BoardTopology;
 import ludot.domain.AtHome;
+import ludot.domain.Briefing;
 import ludot.domain.Colour;
 import ludot.domain.Direction;
 import ludot.domain.Energised;
@@ -1118,5 +1119,36 @@ class MoveGeneratorTest {
         List<Move> moves = legalMovesOnly(Colour.RED, 2);
 
         assertTrue(moves.isEmpty());
+    }
+
+    @Test
+    @DisplayName("t13_a33: a Beta-restricted piece offers no individual move for any roll")
+    void t13_a33_restrictedPieceOffersNoIndividualMove() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new OnTrack(10));
+        board.assignDirection(id, Direction.CLOCKWISE);
+        board.applyEffect(id, new Briefing());
+
+        for (int roll = 1; roll <= 6; roll++) {
+            MoveGenerationResult result = generator.legalMoves(Colour.RED, roll, board, topology);
+            assertTrue(result.legalMoves().stream().noneMatch(m -> m.pieceIds().contains(id)));
+            assertTrue(result.deadEndObstructions().stream().noneMatch(b -> b.pieceId().equals(id)));
+        }
+    }
+
+    @Test
+    @DisplayName("t13_a18: a block containing a Beta-restricted member offers no block move")
+    void t13_a18_blockWithRestrictedMemberOffersNoBlockMove() {
+        PieceId member1 = new PieceId(Colour.RED, 1);
+        PieceId member2 = new PieceId(Colour.RED, 2);
+        board.moveTo(member1, new OnTrack(10));
+        board.assignDirection(member1, Direction.CLOCKWISE);
+        board.applyEffect(member1, new Briefing());
+        board.moveTo(member2, new OnTrack(10));
+        board.assignDirection(member2, Direction.CLOCKWISE);
+
+        List<Move> moves = legalMovesOnly(Colour.RED, 5);
+
+        assertTrue(onlyBlockMove(moves).isEmpty());
     }
 }

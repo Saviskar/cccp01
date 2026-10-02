@@ -84,6 +84,9 @@ public final class MoveGenerator {
     private void collectStepOrObstruction(
             Piece piece, Colour colour, int roll, BoardState board, BoardTopology topology,
             List<Move> fullMoves, List<ObstructedAttempt> obstructed) {
+        if (!piece.effect().canMove()) {
+            return; // A-33: a Beta-restricted piece cannot move at all, for any roll.
+        }
         // A-32/A-55: an individual piece's roll (but not a block move or T-6 forced share) is
         // adjusted by its active effect; NoEffect leaves it unchanged.
         int effectiveSteps = piece.effect().adjustSteps(roll);
@@ -179,6 +182,9 @@ public final class MoveGenerator {
             List<PieceId> members = board.piecesAt(cell).stream()
                     .sorted(Comparator.comparingInt(PieceId::number)) // A-40/A-51: lowest piece number first.
                     .toList();
+            if (members.stream().anyMatch(id -> !board.piece(id).effect().canMove())) {
+                continue; // A-18: a block containing a Beta-restricted piece cannot make a block move.
+            }
             int cellsPerPiece = roll / members.size();
             if (cellsPerPiece == 0) {
                 continue; // A-17: a zero-cell block move is illegal.
