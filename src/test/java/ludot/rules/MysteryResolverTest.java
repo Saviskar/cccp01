@@ -9,6 +9,7 @@ import ludot.domain.PieceId;
 import ludot.events.EventBus;
 import ludot.events.GameEventListener;
 import ludot.events.MysteryCellTriggered;
+import ludot.events.PieceTeleported;
 import ludot.random.RandomPicker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -69,9 +70,18 @@ class MysteryResolverTest {
     @DisplayName("A-29: publishes MysteryCellTriggered naming the drawn outcome, before resolving the landing")
     void a29_publishesMysteryCellTriggeredBeforeLanding() {
         PieceId id = new PieceId(Colour.RED, 1);
+        // T-12: landing on ALPHA makes a second, differently-typed pick() call (A-32's
+        // energised/sick roll), so the stub must branch on what kind of list it was given.
         when(picker.pick(anyList())).thenAnswer(inv -> {
-            List<MysteryOutcome> options = inv.getArgument(0);
-            return options.stream().filter(o -> o.kind() == MysteryOutcomeKind.ALPHA).findFirst().orElseThrow();
+            List<?> options = inv.getArgument(0);
+            if (options.get(0) instanceof MysteryOutcome) {
+                return options.stream()
+                        .map(MysteryOutcome.class::cast)
+                        .filter(o -> o.kind() == MysteryOutcomeKind.ALPHA)
+                        .findFirst()
+                        .orElseThrow();
+            }
+            return options.get(0);
         });
 
         resolver.trigger(id, board, events);
@@ -79,7 +89,9 @@ class MysteryResolverTest {
         InOrder order = inOrder(listener);
         ArgumentCaptor<MysteryCellTriggered> captor = ArgumentCaptor.forClass(MysteryCellTriggered.class);
         order.verify(listener).onEvent(captor.capture());
-        order.verify(listener).onEvent(any());
+        // T-12: landing on an empty Alpha cell also publishes AlphaEffectAssigned afterwards, so
+        // this only pins down the (unambiguous) PieceTeleported fact that follows, not "any event".
+        order.verify(listener).onEvent(any(PieceTeleported.class));
         assertEquals(id, captor.getValue().pieceId());
         assertEquals(MysteryOutcomeKind.ALPHA, captor.getValue().destination());
     }

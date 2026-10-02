@@ -22,7 +22,7 @@ public record PartialMove(
         Position destination,
         Position intendedDestination,
         PieceId blockingPieceId,
-        int rollValue,
+        int units, // A-32: the effective units attempted, before the block cut it short; distinct from cellsMoved below
         int cellsMoved,
         Direction direction,
         boolean capturesSomething,

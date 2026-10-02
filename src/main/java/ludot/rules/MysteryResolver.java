@@ -34,6 +34,6 @@ public final class MysteryResolver implements MysteryHandler {
     public boolean trigger(PieceId pieceId, BoardState board, EventBus events) {
         MysteryOutcome outcome = factory.choose(picker);
         events.publish(new MysteryCellTriggered(pieceId, outcome.kind()));
-        return outcome.apply(pieceId, new MysteryContext(board, topology, events, landingHandler));
+        return outcome.apply(pieceId, new MysteryContext(board, topology, events, landingHandler, picker));
     }
 }

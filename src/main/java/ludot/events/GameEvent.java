@@ -25,5 +25,6 @@ public sealed interface GameEvent permits
         MysterySpawned,
         MysteryCellStatusReported,
         MysteryCellTriggered,
-        PieceTeleported {
+        PieceTeleported,
+        AlphaEffectAssigned {
 }

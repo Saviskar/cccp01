@@ -8,12 +8,15 @@ import ludot.events.PieceMoved;
 
 import java.util.List;
 
-/** Rule 1: a piece already on the standard path (or home straight) moves by the roll value. */
+/**
+ * Rule 1: a piece already on the standard path (or home straight) moves by {@code units} cells
+ * — the roll, or A-32's effect-adjusted value when the piece is energised or sick.
+ */
 public record StepMove(
         PieceId pieceId,
         Position origin,
         Position destination,
-        int rollValue,
+        int units,
         Direction direction,
         boolean capturesSomething,
         boolean formsBlock,
@@ -33,7 +36,7 @@ public record StepMove(
         if (crossesApproachWithoutEntering) {
             board.recordApproachCrossing(pieceId); // A-08
         }
-        context.events().publish(new PieceMoved(pieceId, origin, destination, rollValue, direction));
+        context.events().publish(new PieceMoved(pieceId, origin, destination, units, direction));
 
         boolean captured = false;
         if (capturesSomething) {

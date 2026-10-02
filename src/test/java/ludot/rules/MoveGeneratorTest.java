@@ -5,10 +5,12 @@ import ludot.board.BoardTopology;
 import ludot.domain.AtHome;
 import ludot.domain.Colour;
 import ludot.domain.Direction;
+import ludot.domain.Energised;
 import ludot.domain.InBase;
 import ludot.domain.InHomeStraight;
 import ludot.domain.OnTrack;
 import ludot.domain.PieceId;
+import ludot.domain.Sick;
 import ludot.events.EventBus;
 import ludot.events.PieceBlocked;
 import ludot.moves.BlockMove;
@@ -835,6 +837,22 @@ class MoveGeneratorTest {
     }
 
     @Test
+    @DisplayName("A-55: forcedMove ignores a member's Alpha effect, moving exactly its plain share")
+    void t6_a55_forcedMoveIgnoresPieceEffect() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new OnTrack(10));
+        board.assignDirection(id, Direction.CLOCKWISE);
+        board.applyEffect(id, new Energised());
+
+        ForcedMoveOutcome outcome =
+                generator.forcedMove(board.piece(id), 6, Direction.CLOCKWISE, true, board, topology);
+
+        ForcedMoveOutcome.Movable movable = assertInstanceOf(ForcedMoveOutcome.Movable.class, outcome);
+        StepMove move = assertInstanceOf(StepMove.class, movable.move());
+        assertEquals(new OnTrack(16), move.destination()); // 10 + 6 units, not doubled to 12
+    }
+
+    @Test
     @DisplayName("A-52: forcedMove builds a partial move when obstructed with cells to spare")
     void a52_forcedMoveObstructedWithRoom_buildsPartialMove() {
         PieceId id = new PieceId(Colour.RED, 1);
@@ -1024,5 +1042,81 @@ class MoveGeneratorTest {
         StepMove move = assertInstanceOf(StepMove.class, movable.move());
         assertEquals(new OnTrack(21), move.destination());
         assertTrue(move.landsOnMystery());
+    }
+
+    @Test
+    @DisplayName("T-12/A-32: an energised piece moves double the roll")
+    void t12_a32_energisedPieceMovesDoubleTheRoll() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new OnTrack(10));
+        board.assignDirection(id, Direction.CLOCKWISE);
+        board.applyEffect(id, new Energised());
+
+        List<Move> moves = legalMovesOnly(Colour.RED, 3);
+
+        StepMove move = assertInstanceOf(StepMove.class, moves.get(0));
+        assertEquals(new OnTrack(16), move.destination()); // 10 + (3 * 2)
+        assertEquals(6, move.units());
+    }
+
+    @Test
+    @DisplayName("T-12/A-32: a sick piece moves floor(roll / 2)")
+    void t12_a32_sickPieceMovesHalfTheRollFloored() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new OnTrack(10));
+        board.assignDirection(id, Direction.CLOCKWISE);
+        board.applyEffect(id, new Sick());
+
+        List<Move> moves = legalMovesOnly(Colour.RED, 5);
+
+        StepMove move = assertInstanceOf(StepMove.class, moves.get(0));
+        assertEquals(new OnTrack(12), move.destination()); // 10 + floor(5 / 2)
+        assertEquals(2, move.units());
+    }
+
+    @Test
+    @DisplayName("T-12/A-32: a sick piece whose effective roll is 0 cannot move")
+    void t12_a32_sickPieceWithEffectiveZeroCannotMove() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new OnTrack(10));
+        board.assignDirection(id, Direction.CLOCKWISE);
+        board.applyEffect(id, new Sick());
+
+        MoveGenerationResult result = generator.legalMoves(Colour.RED, 1, board, topology);
+
+        assertTrue(result.legalMoves().isEmpty());
+        assertTrue(result.deadEndObstructions().isEmpty());
+    }
+
+    @Test
+    @DisplayName("T-12/A-18: a block move ignores a member's Alpha effect")
+    void t12_a18_blockMoveIgnoresPieceEffect() {
+        PieceId member1 = new PieceId(Colour.RED, 1);
+        PieceId member2 = new PieceId(Colour.RED, 2);
+        board.moveTo(member1, new OnTrack(10));
+        board.assignDirection(member1, Direction.CLOCKWISE);
+        board.applyEffect(member1, new Energised());
+        board.moveTo(member2, new OnTrack(10));
+        board.assignDirection(member2, Direction.CLOCKWISE);
+
+        List<Move> moves = legalMovesOnly(Colour.RED, 5);
+
+        BlockMove move = onlyBlockMove(moves).orElseThrow();
+        assertEquals(2, move.cellsPerPiece()); // floor(5 / 2), unaffected by member1's Energised effect
+    }
+
+    @Test
+    @DisplayName("T-12/A-32/A-49: an energised piece's doubled roll can overshoot a raw-legal move")
+    void t12_a49_energisedOvershootIsIllegal() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new InHomeStraight(3));
+        board.assignDirection(id, Direction.CLOCKWISE);
+        board.applyEffect(id, new Energised());
+
+        // Raw roll 2 reaches Home exactly (cell 3 -> cell 4 -> Home); energised doubles it to 4,
+        // which overshoots and makes the move illegal.
+        List<Move> moves = legalMovesOnly(Colour.RED, 2);
+
+        assertTrue(moves.isEmpty());
     }
 }

@@ -17,6 +17,7 @@ public final class TeleportToGamma implements MysteryOutcome {
     @Override
     public boolean apply(PieceId pieceId, MysteryContext context) {
         int index = context.topology().gammaIndex();
-        return MysteryLanding.landAt(pieceId, index, kind(), context.board(), context.landingHandler(), context.events());
+        return MysteryLanding.landAt(pieceId, index, kind(), context.board(), context.landingHandler(), context.events())
+                .captured();
     }
 }

@@ -146,6 +146,8 @@ and the capture grants a single bonus roll (A-23).
 
 **A-54 — Forced breaks and the mystery cell.** A member moved by a T-6 forced break (A-22) that ends its move on the mystery cell triggers it (A-29). Any capture from the resulting teleport counts but grants no bonus roll, since the turn has ended (A-22).
 
+**A-55 — Effects apply only to rolled moves.** Alpha's energised/sick adjustment (A-32) applies only to a piece's individual move made from a roll. It does not apply to T-6 forced break moves (A-22), which always move their fixed share — keeping forced moves within 6 units — nor to block moves (A-18).
+
 **A-46 — Move-then-capture message order.** A capturing move publishes the movement message first, then the capture message — never the capture message alone. A standard-path capture publishes the "moves piece from L1 to L2" message, then the capture message. A base-to-X capture publishes the "moved to the starting point" message, then the capture message. The player-count line that follows a capture message reports the captured colour's board/base counts, since the capturing player's own counts don't change.
 
 **A-47 — Six always grants a bonus roll.** Rule 4's second roll for a six is unconditional: a player who rolls a six gets a bonus roll even if that six produced no legal move (e.g. no piece could leave base, or the only piece on the board couldn't move). Exception: when the throw is ignored because of an obstruction (A-48), the turn ends and the dice passes to the next player, even on a six — as the spec's "Ignoring the throw and moving on to the next player" message and Rule 7 state.

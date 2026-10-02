@@ -5,6 +5,8 @@ import ludot.board.BoardTopology;
 import ludot.domain.AtHome;
 import ludot.domain.Colour;
 import ludot.domain.Direction;
+import ludot.domain.Energised;
+import ludot.domain.NoEffect;
 import ludot.domain.OnTrack;
 import ludot.domain.PieceId;
 import ludot.events.DiceRolled;
@@ -177,5 +179,38 @@ class RoundManagerTest {
                         .filter(MysteryCellStatusReported.class::isInstance)
                         .reduce((first, second) -> second)
                         .orElseThrow());
+    }
+
+    @Test
+    @DisplayName("T-12/A-32: an effect one tick from expiry expires after exactly one playRound")
+    void t12_a32_effectOneTickFromExpiryExpiresAfterOneRound() {
+        when(dice.roll()).thenReturn(3); // non-six, no legal moves generated either way
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new OnTrack(5));
+        board.assignDirection(id, Direction.CLOCKWISE);
+        board.applyEffect(id, new Energised(1));
+
+        roundManager.playRound(players(), board, standings, board);
+
+        assertEquals(new NoEffect(), board.piece(id).effect());
+    }
+
+    @Test
+    @DisplayName("T-12/A-32: a fresh effect survives 4 rounds and expires only after the 5th")
+    void t12_a32_freshEffectExpiresAfterFifthRound() {
+        when(dice.roll()).thenReturn(3);
+        when(randomPicker.pick(anyList())).thenReturn(7); // A-28's mystery timer spawns within these 5 rounds
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new OnTrack(5));
+        board.assignDirection(id, Direction.CLOCKWISE);
+        board.applyEffect(id, new Energised());
+
+        for (int round = 1; round <= 4; round++) {
+            roundManager.playRound(players(), board, standings, board);
+            assertTrue(board.piece(id).effect() instanceof Energised, "still active after round " + round);
+        }
+        roundManager.playRound(players(), board, standings, board); // 5th round-end: expires
+
+        assertEquals(new NoEffect(), board.piece(id).effect());
     }
 }

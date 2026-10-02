@@ -84,34 +84,40 @@ public final class MoveGenerator {
     private void collectStepOrObstruction(
             Piece piece, Colour colour, int roll, BoardState board, BoardTopology topology,
             List<Move> fullMoves, List<ObstructedAttempt> obstructed) {
+        // A-32/A-55: an individual piece's roll (but not a block move or T-6 forced share) is
+        // adjusted by its active effect; NoEffect leaves it unchanged.
+        int effectiveSteps = piece.effect().adjustSteps(roll);
+        if (effectiveSteps == 0) {
+            return; // A-32: an effective value of 0 means the piece cannot move with that roll.
+        }
         // A-12: a piece off base always has a direction; T-1 (phase 4a) is what lets it be counterclockwise.
         Direction direction = piece.originalDirection().orElseThrow();
         // T-5/A-21 fact: true when this piece's cell is currently a block of its own colour.
         boolean breaksBlock = piece.position() instanceof OnTrack(int idx) && board.isBlock(idx);
         RouteResult result = movementCalculator.walk(
-                piece.position(), roll, colour, direction, piece.ccwApproachCrossings(), piece.captureCount(),
-                topology, board);
+                piece.position(), effectiveSteps, colour, direction, piece.ccwApproachCrossings(),
+                piece.captureCount(), topology, board);
         switch (result) {
             case RouteResult.Overshoot ignored -> { } // Rule 10: overshoot is illegal.
             case RouteResult.Obstructed obs ->
-                    obstructed.add(new ObstructedAttempt(piece, roll, direction, obs, breaksBlock));
-            case RouteResult.Reachable(Position destination, boolean crossed) ->
-                    fullMoves.add(buildStepMove(piece, destination, roll, direction, crossed, breaksBlock, board));
+                    obstructed.add(new ObstructedAttempt(piece, effectiveSteps, direction, obs, breaksBlock));
+            case RouteResult.Reachable(Position destination, boolean crossed) -> fullMoves.add(
+                    buildStepMove(piece, destination, effectiveSteps, direction, crossed, breaksBlock, board));
         }
     }
 
     private Move buildStepMove(
-            Piece piece, Position destination, int roll, Direction direction, boolean crossed, boolean breaksBlock,
+            Piece piece, Position destination, int units, Direction direction, boolean crossed, boolean breaksBlock,
             BoardState board) {
         if (destination instanceof OnTrack(int idx)) {
             OccupancyOutcome occupancy = occupancyOutcome(idx, piece.id().colour(), board);
             return new StepMove(
-                    piece.id(), piece.position(), destination, roll, direction, occupancy.captures(),
+                    piece.id(), piece.position(), destination, units, direction, occupancy.captures(),
                     occupancy.formsBlock(), breaksBlock, crossed, landsOnMystery(idx, board));
         }
         // A-10: home-straight cells allow own-colour sharing without forming a block, and never hold an opponent.
         return new StepMove(
-                piece.id(), piece.position(), destination, roll, direction, false, false, breaksBlock, crossed,
+                piece.id(), piece.position(), destination, units, direction, false, false, breaksBlock, crossed,
                 false);
     }
 
@@ -146,7 +152,7 @@ public final class MoveGenerator {
         OccupancyOutcome occupancy = occupancyOutcome(idx, attempt.piece().id().colour(), board);
         return new PartialMove(
                 attempt.piece().id(), attempt.piece().position(), destination, route.intendedDestination(),
-                route.blockingPieceId(), attempt.roll(), route.cellsWalked(), attempt.direction(),
+                route.blockingPieceId(), attempt.units(), route.cellsWalked(), attempt.direction(),
                 occupancy.captures(), occupancy.formsBlock(), attempt.breaksBlock(),
                 route.crossedApproachWithoutEntering(), landsOnMystery(idx, board));
     }
@@ -262,7 +268,7 @@ public final class MoveGenerator {
     }
 
     private record ObstructedAttempt(
-            Piece piece, int roll, Direction direction, RouteResult.Obstructed route, boolean breaksBlock) {
+            Piece piece, int units, Direction direction, RouteResult.Obstructed route, boolean breaksBlock) {
     }
 
     private record OccupancyOutcome(boolean captures, boolean formsBlock) {
