@@ -1,6 +1,7 @@
 package ludot.moves;
 
 import ludot.board.BoardState;
+import ludot.board.BoardTopology;
 import ludot.domain.Colour;
 import ludot.domain.Direction;
 import ludot.domain.OnTrack;
@@ -14,6 +15,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
@@ -21,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -174,6 +179,27 @@ class StepMoveTest {
         move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN, mysteryHandler));
 
         verifyNoInteractions(mysteryHandler);
+    }
+
+    @ParameterizedTest(name = "t15_a35: normal landing on {0} has no effect")
+    @MethodSource("specialCells")
+    void t15_a35_normalLandingOnSpecialCellHasNoEffect(String label, int index) {
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new OnTrack(10));
+        Move move = new StepMove(
+                id, new OnTrack(10), new OnTrack(index), 4, Direction.CLOCKWISE, false, false, false, false, false);
+
+        move.execute(new MoveContext(board, events, landingHandler, UNUSED_COIN, mysteryHandler));
+
+        verifyNoInteractions(mysteryHandler);
+    }
+
+    private static Stream<Arguments> specialCells() {
+        BoardTopology topology = new BoardTopology();
+        return Stream.of(
+                Arguments.of("Alpha", topology.alphaIndex()),
+                Arguments.of("Beta", topology.betaIndex()),
+                Arguments.of("Gamma", topology.gammaIndex()));
     }
 
     @Test

@@ -201,3 +201,11 @@ stay; every unrestricted member leaves, sharing the 6 units equally in its origi
 for 1 leaver, 3 each for 2 leavers, 2 each for 3 leavers). If no member is restricted, A-22
 applies unchanged. If every member is restricted, the block is omitted from the break plan
 entirely — nothing breaks, and no `BlockadeBroken` is published for it.
+
+**A-58 — Gamma details.** A counterclockwise piece teleported to Gamma (A-34) first lands on
+Gamma under A-31 — a single opponent there is captured; an opponent block sends it to base and
+the chain ends — then is teleported on to Beta, again under A-31, where Briefing (A-33) applies
+if it lands. Captures at both cells count, but grant at most one bonus roll (A-23). When Gamma
+turns a clockwise piece counterclockwise, its counterclockwise crossing count is unchanged (it
+counts only counterclockwise passes, A-08), so it must pass its Approach counterclockwise twice
+before entering the home straight.
