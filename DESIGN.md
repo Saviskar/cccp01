@@ -43,7 +43,7 @@ Why this matters:
 | `board` | `BoardTopology`, `BoardState`, `MysteryCell`, `MysteryCellTick`, `Piece`, `GameView` | `domain`, `random` |
 | `moves` | `Move` and its implementations, `LandingHandler`, `MysteryHandler` | `domain`, `board`, `events`, `random` |
 | `rules` | `MovementCalculator`, `MoveGenerator`, `LandingResolver`, `MysteryResolver`, `MysteryOutcome` implementations | `domain`, `board`, `moves`, `random`, `events` |
-| `players` | `PlayerStrategy`, four strategies | `domain`, `moves`, `board` |
+| `players` | `PlayerStrategy`, four strategies, `MoveRanking` | `domain`, `moves`, `board` |
 | `engine` | `GameEngine`, `TurnController`, `RoundManager`, `Standings` | all of the above |
 | `events` | `GameEvent` types, `GameEventListener`, `EventBus` | `domain` |
 | `output` | `ConsoleReporter`, `MessageTemplates` | `events`, `domain` |
@@ -68,6 +68,7 @@ Dependencies point one way only, towards `domain`. `players` does **not** depend
 | `LandingResolver` | What happens when something lands on a cell: captures (Rule 6, T-2, T-8), block formation, obstruction. Shared by normal moves and teleports so the logic isn't duplicated. Implements `moves.LandingHandler`, so a `Move` can trigger landing resolution without the `moves` package depending on `rules` (dependency inversion). |
 | `MysteryResolver` | Mystery cell trigger: picks an outcome, teleports, resolves A-31's landing rules (T-11); applies Alpha/Beta/Gamma effects in later phases (T-12 to T-15). Implements `moves.MysteryHandler`, so a `Move` can trigger it without the `moves` package depending on `rules` — same dependency-inversion reasoning as `LandingResolver`/`LandingHandler`. |
 | `PlayerStrategy` | Selects one move from the legal list. |
+| `MoveRanking` | Shared "closest to home" move ranking (A-40), used by strategies via composition in place of a Template Method base class (§7). |
 | `TurnController` | One player's turn: roll loop, six streak, T-6, bonus rolls (A-23), Beta three-3s streak (A-33). |
 | `RoundManager` | Round order, round-end ticks (effects, mystery timer), round status output, round guard (A-42). |
 | `GameEngine` | Opening roll, running rounds until the game ends, final placings. |
@@ -445,6 +446,11 @@ classDiagram
     }
     class GameView {
         <<interface>>
+        +distanceFromHome(id) int
+    }
+    class MoveRanking {
+        +mover(move) PieceId
+        +closestMoverToHome(moves, view) Move
     }
     class BoardState
     class BoardTopology
@@ -521,6 +527,8 @@ classDiagram
     PlayerStrategy <|.. GreenStrategy
     PlayerStrategy <|.. YellowStrategy
     PlayerStrategy <|.. BlueStrategy
+    RedStrategy --> MoveRanking
+    MoveRanking ..> GameView
     PieceEffect <|.. NoEffect
     PieceEffect <|.. Energised
     PieceEffect <|.. Sick
@@ -584,3 +592,4 @@ during the corresponding phase's planning. A change recorded here is not a viola
 | 4k | 4.5, 11.1 | `MysteryOutcomeFactory` now constructs one shared `TeleportToBeta` instance and passes it into `TeleportToGamma`'s constructor, instead of `TeleportToGamma` instantiating its own; `TeleportToGamma --> MysteryOutcome` added to the class diagram; `GammaDirectionReversed`, `GammaRerouteTriggered` added to `events`/`GameEvent` | T-14/A-34/A-58's Gamma-to-Beta reroute needs a `MysteryOutcome` collaborator; keeping it as the abstraction (rather than a hardcoded concrete class) means `GameFactory`'s sole-concrete-class-owner role (§2.3) extends through `MysteryOutcomeFactory` rather than being bypassed by one leaf outcome instantiating a sibling directly |
 | 5 | 2.2, 2.3 | `PieceTeleported` gains a `blockingColour: Optional<Colour>` field, populated by `MysteryLanding.landAt`'s redirect branch; `ludot.output` (`MessageTemplates`, `ConsoleReporter`) added, implementing the Observer side of §4.3 | A-60: the redirect-to-base message needs to name which colour's blockade occupied the drawn cell, a fact `MysteryLanding` already computes (via `BoardState.colourAt`) but didn't previously publish; `ConsoleReporter` is constructor-injected with a `PrintStream` (mirroring the `Dice`/`Coin`/`RandomPicker` injection pattern in §4.6) so golden-file tests can capture output without global `System.setOut`. `MessageTemplates` formats `Colour`/`Direction`/`Position` fields taken directly from events, so `output` also depends on `domain`; §2.2's table is corrected to list it |
 | 5 | 2.2 | `GameEnded` gains a `notFinished: List<Colour>` field, populated by `GameEngine.run()` via the existing `Standings.hasFinished`; `MessageTemplates.gameEnded()`'s round-guard branch replaced with a single summary line instead of reprinting every placing | A-61: under the round guard, every placing in `GameEnded.placings()` is already a live finisher (`Standings.finalPlacings()` returns `finishOrder()` verbatim whenever fewer than 3 have finished), so reprinting them duplicated each one's already-published `PlayerFinished`/"wins!!!" message; the fix needed to know who never finished, which `Standings` doesn't otherwise expose as a list |
+| 6a | 2.2, 2.3, 3.5, 11.1 | `GameView` (implemented by `BoardState`) gains `distanceFromHome(PieceId): int` (A-13, amended); `BoardState` owns a private `BoardTopology` instance to implement it; `MoveGenerator.blockDirection`'s and `BlockBreakPlanner.farthestMember`'s own per-member distance lookups are replaced by this one shared query, and `BlockBreakPlanner.plan`/`planBreak`/`farthestMember` drop their now-unused `BoardTopology` parameter; `MoveRanking` and `RedStrategy` added to `players` | Phase 4e deferred deduplicating this calculation (its own changelog entry notes the block-cell query was shared but not this one); A-34's Gamma reversal can make a counterclockwise piece's route exceed the previously-assumed "full route length + 1" bound for a base piece, so A-13's in-base case became a fixed constant (`BoardTopology.IN_BASE_DISTANCE`) rather than a computed figure; `MoveRanking` is DESIGN.md §7's named alternative to a Template Method strategy base class, scoped to what's left once `distanceFromHome` itself moved onto `GameView` — ranking by a move's lowest-numbered mover (A-40), shared by every strategy that needs "closest to home" |

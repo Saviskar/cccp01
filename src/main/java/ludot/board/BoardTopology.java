@@ -30,6 +30,13 @@ public final class BoardTopology {
     // A-05/A-08: steps from Approach to Home (homepath0-4, then Home).
     private static final int APPROACH_TO_HOME = HOME_STRAIGHT_LENGTH + 1;
 
+    /**
+     * A-13 (amended): a piece in base ranks farther from home than any piece on the board.
+     * A fixed constant is used rather than a computed "full route length + 1", since a
+     * Gamma-reversed counterclockwise piece (A-34) can exceed that figure.
+     */
+    public static final int IN_BASE_DISTANCE = Integer.MAX_VALUE;
+
     public int xIndex(Colour colour) {
         return Math.floorMod(COLOUR_X_STEP * colour.index(), TRACK_SIZE);
     }

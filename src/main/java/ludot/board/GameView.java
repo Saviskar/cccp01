@@ -30,4 +30,11 @@ public interface GameView {
     int countOnBoard(Colour colour);
 
     int countAtHome(Colour colour);
+
+    /**
+     * A-13 (amended): steps remaining to Home, assuming T-7 eligibility will be satisfied by
+     * the next Approach visit. A piece at Home has distance 0; a piece in base ranks farther
+     * than any piece on the board ({@link BoardTopology#IN_BASE_DISTANCE}).
+     */
+    int distanceFromHome(PieceId id);
 }

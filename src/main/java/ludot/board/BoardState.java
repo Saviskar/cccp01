@@ -33,6 +33,9 @@ public final class BoardState implements GameView {
     private final List<List<PieceId>> track = new ArrayList<>(BoardTopology.TRACK_SIZE);
     private final Map<Colour, List<List<PieceId>>> homeStraight = new EnumMap<>(Colour.class);
     private final MysteryCell mysteryCell = new MysteryCell();
+    // Pure geometry with no fields (A-01/A-02), so owning an instance here needs no constructor
+    // parameter and changes no behaviour, unlike Dice/Coin/RandomPicker.
+    private final BoardTopology topology = new BoardTopology();
 
     public BoardState() {
         for (int i = 0; i < BoardTopology.TRACK_SIZE; i++) {
@@ -138,6 +141,19 @@ public final class BoardState implements GameView {
 
     public int countAtHome(Colour colour) {
         return countWhere(colour, position -> position instanceof AtHome);
+    }
+
+    // A-13 (amended): shared by MoveGenerator's block-direction tie-break (A-17) and
+    // BlockBreakPlanner's farthest-member tie-break (A-22), instead of each computing it itself.
+    public int distanceFromHome(PieceId id) {
+        Piece piece = pieces.get(id);
+        return switch (piece.position()) {
+            case OnTrack(int idx) -> topology.distanceFromHome(
+                    id.colour(), piece.originalDirection().orElseThrow(), idx, piece.ccwApproachCrossings());
+            case InHomeStraight(int cell) -> BoardTopology.HOME_STRAIGHT_LENGTH - cell;
+            case AtHome ignored -> 0;
+            case InBase ignored -> BoardTopology.IN_BASE_DISTANCE;
+        };
     }
 
     private int countWhere(Colour colour, Predicate<Position> predicate) {

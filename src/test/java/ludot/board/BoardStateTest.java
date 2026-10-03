@@ -1,5 +1,6 @@
 package ludot.board;
 
+import ludot.domain.AtHome;
 import ludot.domain.Colour;
 import ludot.domain.Direction;
 import ludot.domain.InBase;
@@ -226,5 +227,73 @@ class BoardStateTest {
 
         assertFalse(captor.getValue().contains(5));
         assertEquals(51, captor.getValue().size()); // every track cell except the occupied one
+    }
+
+    @Test
+    @DisplayName("A-13: distanceFromHome for a clockwise piece on the standard track")
+    void a13_distanceFromHomeOnTrackClockwise() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new OnTrack(10));
+        board.assignDirection(id, Direction.CLOCKWISE);
+
+        assertEquals(20, board.distanceFromHome(id)); // floorMod(24 - 10, 52) + 6
+    }
+
+    @Test
+    @DisplayName("A-08/A-13: distanceFromHome for a counterclockwise piece before its first Approach crossing")
+    void a13_distanceFromHomeOnTrackCounterclockwiseBeforeFirstCrossing() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new OnTrack(10));
+        board.assignDirection(id, Direction.COUNTERCLOCKWISE);
+
+        assertEquals(96, board.distanceFromHome(id)); // floorMod(10 - 24, 52) + 52 + 6, extra lap (A-08)
+    }
+
+    @Test
+    @DisplayName("A-08/A-13: distanceFromHome for a counterclockwise piece after its first Approach crossing")
+    void a13_distanceFromHomeOnTrackCounterclockwiseAfterFirstCrossing() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new OnTrack(10));
+        board.assignDirection(id, Direction.COUNTERCLOCKWISE);
+        board.recordApproachCrossing(id);
+
+        assertEquals(44, board.distanceFromHome(id)); // floorMod(10 - 24, 52) + 6, no extra lap
+    }
+
+    @Test
+    @DisplayName("A-13: distanceFromHome for a piece in its home straight")
+    void a13_distanceFromHomeInHomeStraight() {
+        PieceId id = new PieceId(Colour.YELLOW, 1);
+        board.moveTo(id, new InHomeStraight(2));
+
+        assertEquals(3, board.distanceFromHome(id)); // 5 - 2
+    }
+
+    @Test
+    @DisplayName("A-13: distanceFromHome is zero for a piece already at Home")
+    void a13_distanceFromHomeAtHomeIsZero() {
+        PieceId id = new PieceId(Colour.GREEN, 1);
+        board.moveTo(id, new AtHome());
+
+        assertEquals(0, board.distanceFromHome(id));
+    }
+
+    @Test
+    @DisplayName("A-13 (amended): distanceFromHome for a piece in base is the fixed constant")
+    void a13_distanceFromHomeInBaseIsFixedConstant() {
+        PieceId id = new PieceId(Colour.BLUE, 1);
+
+        assertEquals(BoardTopology.IN_BASE_DISTANCE, board.distanceFromHome(id));
+    }
+
+    @Test
+    @DisplayName("A-13 (amended): a piece in base ranks farther from home than any on-board piece")
+    void a13_distanceFromHomeInBaseExceedsAnyOnBoardDistance() {
+        PieceId inBase = new PieceId(Colour.BLUE, 1);
+        PieceId onBoard = new PieceId(Colour.RED, 1);
+        board.moveTo(onBoard, new OnTrack(10));
+        board.assignDirection(onBoard, Direction.COUNTERCLOCKWISE); // farthest realistic on-board case (A-08)
+
+        assertTrue(board.distanceFromHome(inBase) > board.distanceFromHome(onBoard));
     }
 }
