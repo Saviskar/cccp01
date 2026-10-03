@@ -28,5 +28,7 @@ public sealed interface GameEvent permits
         PieceTeleported,
         AlphaEffectAssigned,
         BriefingAssigned,
-        BriefingStreakTriggered {
+        BriefingStreakTriggered,
+        GammaDirectionReversed,
+        GammaRerouteTriggered {
 }
