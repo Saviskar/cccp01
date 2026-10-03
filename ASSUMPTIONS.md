@@ -277,3 +277,22 @@ not a separate positional test.
 **A-67 — Green and captures.** The brief's "will not look to capture opponent pieces more
 than what is required to enter the home straight" is a limit, not a mandate: Green has no
 capture-priority tier. A capturing move is ranked like any other move within A-65's tiers.
+
+---
+
+## 13. Phase 6c — Yellow Strategy
+
+**A-68 — Yellow and block-move captures.** For a capturing block move, Yellow's capture
+tier (A-38) treats the move as eligible if **any** member has a capture count of 0 —
+since a block capture credits every member (A-19), it helps any member that still needs
+one. Other move types check their single mover.
+
+**A-69 — Yellow's capture tie-break.** Yellow's capture tier (A-38) has no distance-based
+ranking among multiple qualifying captures (unlike Red/A-62). Ties break by the mover's
+lowest piece number (A-40) only.
+
+**A-70 — Yellow and blocks.** The brief gives Yellow no block preference, so Yellow
+neither avoids nor seeks forming or breaking blocks. In the closest-to-home tier, a block
+move is ranked like any other move, by its lowest-numbered member (`MoveRanking.mover`);
+"by the number specified in the roll" is read as describing the usual case, not as
+excluding block moves.
