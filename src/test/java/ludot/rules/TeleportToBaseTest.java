@@ -80,5 +80,6 @@ class TeleportToBaseTest {
         assertEquals(MysteryOutcomeKind.BASE, event.destination());
         assertEquals(new InBase(), event.finalPosition());
         assertFalse(event.redirectedToBase());
+        assertEquals(Optional.empty(), event.blockingColour());
     }
 }

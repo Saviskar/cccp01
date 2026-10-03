@@ -13,6 +13,7 @@ import ludot.moves.LandingHandler;
 import ludot.moves.LandingResult;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * A-31: shared landing logic for every {@link MysteryOutcome} that teleports to
@@ -28,16 +29,18 @@ final class MysteryLanding {
             PieceId pieceId, int trackIndex, MysteryOutcomeKind kind, BoardState board, LandingHandler landingHandler,
             EventBus events) {
         Colour moverColour = pieceId.colour();
-        if (board.isBlock(trackIndex) && board.colourAt(trackIndex).orElseThrow() != moverColour) {
+        Optional<Colour> occupant = board.colourAt(trackIndex);
+        if (board.isBlock(trackIndex) && occupant.orElseThrow() != moverColour) {
             // A-31: an opponent block sends the teleported piece to base instead of landing there.
+            Colour blockingColour = occupant.orElseThrow();
             board.resetToBase(pieceId); // A-26/T-9: a return to base always resets everything
-            events.publish(new PieceTeleported(pieceId, kind, new InBase(), true));
+            events.publish(new PieceTeleported(pieceId, kind, new InBase(), true, Optional.of(blockingColour)));
             return new LandingOutcome(false, true);
         }
-        boolean captures = board.colourAt(trackIndex).map(colour -> colour != moverColour).orElse(false);
+        boolean captures = occupant.map(colour -> colour != moverColour).orElse(false);
         Position destination = new OnTrack(trackIndex);
         board.moveTo(pieceId, destination);
-        events.publish(new PieceTeleported(pieceId, kind, destination, false));
+        events.publish(new PieceTeleported(pieceId, kind, destination, false, Optional.empty()));
         if (!captures) {
             return new LandingOutcome(false, false); // empty cell, or an own piece forms a block (A-14)
         }

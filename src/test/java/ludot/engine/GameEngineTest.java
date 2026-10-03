@@ -132,5 +132,6 @@ class GameEngineTest {
         GameEnded ended = published(GameEnded.class, captor).get(0);
         assertTrue(ended.stoppedByRoundGuard());
         assertTrue(ended.placings().isEmpty());
+        assertEquals(List.of(Colour.RED, Colour.GREEN, Colour.YELLOW, Colour.BLUE), ended.notFinished());
     }
 }
