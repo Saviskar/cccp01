@@ -11,6 +11,7 @@ import ludot.events.GameEventListener;
 import ludot.events.OpeningRollRolled;
 import ludot.events.OpeningRollWinnerDetermined;
 import ludot.events.RoundOrderAnnounced;
+import ludot.events.SeedSelected;
 import ludot.players.FirstLegalMoveStrategy;
 import ludot.players.PlayerStrategy;
 import ludot.random.Dice;
@@ -39,6 +40,8 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class GameEngineTest {
+
+    private static final long TEST_SEED = 42L;
 
     @Mock
     private Dice dice;
@@ -69,12 +72,25 @@ class GameEngineTest {
         for (Colour colour : Colour.values()) {
             strategies.put(colour, new FirstLegalMoveStrategy());
         }
-        engine = new GameEngine(dice, roundManager, events, strategies);
+        engine = new GameEngine(TEST_SEED, dice, roundManager, events, strategies);
         board = new BoardState();
     }
 
     private <T extends GameEvent> List<T> published(Class<T> type, ArgumentCaptor<GameEvent> captor) {
         return captor.getAllValues().stream().filter(type::isInstance).map(type::cast).toList();
+    }
+
+    @Test
+    @DisplayName("A-44: SeedSelected is published first, ahead of every other event")
+    void a44_seedSelectedIsPublishedFirst() {
+        when(dice.roll()).thenReturn(6, 6, 3, 2, 5, 6, 3);
+
+        engine.run(board, board);
+
+        ArgumentCaptor<GameEvent> captor = ArgumentCaptor.forClass(GameEvent.class);
+        verify(listener, atLeastOnce()).onEvent(captor.capture());
+
+        assertEquals(new SeedSelected(TEST_SEED), captor.getAllValues().get(0));
     }
 
     @Test

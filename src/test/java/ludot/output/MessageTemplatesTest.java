@@ -37,6 +37,7 @@ import ludot.events.PiecesIntroduced;
 import ludot.events.PlayerFinished;
 import ludot.events.RoundOrderAnnounced;
 import ludot.events.RoundStatusReported;
+import ludot.events.SeedSelected;
 import ludot.events.ThirdSixIgnored;
 import ludot.events.ThrowIgnoredAfterBlock;
 import org.junit.jupiter.api.DisplayName;
@@ -51,6 +52,16 @@ class MessageTemplatesTest {
 
     private static final PieceId R1 = new PieceId(Colour.RED, 1);
     private static final PieceId G2 = new PieceId(Colour.GREEN, 2);
+
+    @Test
+    @DisplayName("A-72: seedSelected: announces the seed a run used, so it can be replayed")
+    void seedSelected() {
+        assertEquals(
+                List.of(
+                        "This run uses seed 42.",
+                        "Rerun with --seed 42 to reproduce this exact game."),
+                MessageTemplates.seedSelected(new SeedSelected(42L)));
+    }
 
     @Test
     @DisplayName("A-43: piecesIntroduced: verbatim intro line, §3")
@@ -351,21 +362,21 @@ class MessageTemplatesTest {
     }
 
     @Test
-    @DisplayName("playerFinished: non-winning places produce no line (reported once, by GameEnded)")
-    void playerFinishedNonWinnerIsSilent() {
-        assertEquals(List.of(), MessageTemplates.playerFinished(new PlayerFinished(Colour.GREEN, 2)));
-        assertEquals(List.of(), MessageTemplates.playerFinished(new PlayerFinished(Colour.GREEN, 3)));
-        assertEquals(List.of(), MessageTemplates.playerFinished(new PlayerFinished(Colour.GREEN, 4)));
+    @DisplayName("A-41/A-61: playerFinished: places 2-3 report their own live placing line")
+    void playerFinishedNonWinnerReportsLiveLine() {
+        assertEquals(
+                List.of("Green player finishes in 2nd place."),
+                MessageTemplates.playerFinished(new PlayerFinished(Colour.GREEN, 2)));
+        assertEquals(
+                List.of("Yellow player finishes in 3rd place."),
+                MessageTemplates.playerFinished(new PlayerFinished(Colour.YELLOW, 3)));
     }
 
     @Test
-    @DisplayName("A-43: gameEnded normal completion reports 2nd-4th, since 1st already won live")
-    void gameEndedNormalCompletionReportsRemainingPlacings() {
+    @DisplayName("A-41/A-61: gameEnded normal completion reports only the auto-assigned 4th place")
+    void gameEndedNormalCompletionReportsOnlyFourthPlace() {
         assertEquals(
-                List.of(
-                        "Green player finishes in 2nd place.",
-                        "Yellow player finishes in 3rd place.",
-                        "Blue player finishes in 4th place."),
+                List.of("Blue player finishes in 4th place."),
                 MessageTemplates.gameEnded(new GameEnded(
                         List.of(Colour.RED, Colour.GREEN, Colour.YELLOW, Colour.BLUE), false, List.of())));
     }

@@ -29,6 +29,7 @@ import ludot.events.PiecesIntroduced;
 import ludot.events.PlayerFinished;
 import ludot.events.RoundOrderAnnounced;
 import ludot.events.RoundStatusReported;
+import ludot.events.SeedSelected;
 import ludot.events.ThirdSixIgnored;
 import ludot.events.ThrowIgnoredAfterBlock;
 
@@ -53,6 +54,7 @@ public final class ConsoleReporter implements GameEventListener {
     @Override
     public void onEvent(GameEvent event) {
         List<String> lines = switch (event) {
+            case SeedSelected e -> MessageTemplates.seedSelected(e);
             case PiecesIntroduced e -> MessageTemplates.piecesIntroduced(e);
             case OpeningRollRolled e -> MessageTemplates.openingRollRolled(e);
             case OpeningRollWinnerDetermined e -> MessageTemplates.openingRollWinnerDetermined(e);

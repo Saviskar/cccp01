@@ -2,6 +2,7 @@ package ludot.events;
 
 /** A fact the engine publishes for ConsoleReporter to format (Observer, DESIGN.md 4.3). */
 public sealed interface GameEvent permits
+        SeedSelected,
         PiecesIntroduced,
         OpeningRollRolled,
         OpeningRollWinnerDetermined,

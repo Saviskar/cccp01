@@ -37,6 +37,7 @@ import ludot.events.PiecesIntroduced;
 import ludot.events.PlayerFinished;
 import ludot.events.RoundOrderAnnounced;
 import ludot.events.RoundStatusReported;
+import ludot.events.SeedSelected;
 import ludot.events.ThirdSixIgnored;
 import ludot.events.ThrowIgnoredAfterBlock;
 
@@ -57,8 +58,16 @@ final class MessageTemplates {
     private static final int SIX = 6;
     private static final int PIECES_PER_COLOUR = 4;
     private static final int WINNING_PLACE = 1;
+    private static final int FOURTH_PLACE = 4;
 
     private MessageTemplates() {
+    }
+
+    // A-72: wording and first-publish placement.
+    static List<String> seedSelected(SeedSelected event) {
+        return List.of(
+                "This run uses seed " + event.seed() + ".",
+                "Rerun with --seed " + event.seed() + " to reproduce this exact game.");
     }
 
     static List<String> piecesIntroduced(PiecesIntroduced event) {
@@ -244,25 +253,24 @@ final class MessageTemplates {
                 + " is moving in a counterclockwise direction. Teleporting to Beta from Gamma.");
     }
 
-    // Non-winning places are reported once, at game end (GameEnded), so a colour that finishes
-    // live and a colour auto-assigned last place (A-41) are announced exactly the same way.
+    // A-41/A-61: every colour that actually finishes (places 1-3) reports its own live line —
+    // place 1's win, or an ordinary placing line otherwise. Only the auto-assigned 4th place
+    // (A-41) never finishes live, so it has no PlayerFinished event and is reported by GameEnded.
     static List<String> playerFinished(PlayerFinished event) {
-        if (event.place() != WINNING_PLACE) {
-            return List.of();
+        if (event.place() == WINNING_PLACE) {
+            return List.of(colourWord(event.colour(), true) + " player wins!!!");
         }
-        return List.of(colourWord(event.colour(), true) + " player wins!!!");
+        return List.of(placingLine(event.colour(), event.place()));
     }
 
     static List<String> gameEnded(GameEnded event) {
         if (event.stoppedByRoundGuard()) {
             return List.of(roundGuardSummaryLine(event));
         }
-        List<String> lines = new ArrayList<>();
-        // Place 1 already announced its own win via PlayerFinished; report the rest here.
-        for (int i = 1; i < event.placings().size(); i++) {
-            lines.add(placingLine(event.placings().get(i), i + 1));
-        }
-        return List.copyOf(lines);
+        // A-41/A-61: places 1-3 already announced their own live PlayerFinished message; only
+        // the auto-assigned 4th place has never been announced.
+        Colour fourthPlace = event.placings().get(FOURTH_PLACE - 1);
+        return List.of(placingLine(fourthPlace, FOURTH_PLACE));
     }
 
     // A-61: the round guard never re-announces a placing (every finisher already got its live
