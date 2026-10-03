@@ -169,7 +169,7 @@ public final class TurnController {
     // check is needed afterwards: each block's staying member never moves, so at least one of the
     // colour's pieces is guaranteed not to reach Home as part of any single break.
     private void breakBlocksIfAny(Colour colour, BoardState board, BoardTopology topology) {
-        List<BlockBreak> plan = blockBreakPlanner.plan(colour, board, topology);
+        List<BlockBreak> plan = blockBreakPlanner.plan(colour, board);
         for (BlockBreak blockBreak : plan) {
             events.publish(new BlockadeBroken(
                     colour, blockBreak.cell(), blockBreak.staying(), blockBreak.leaving(), blockBreak.unitsEach()));

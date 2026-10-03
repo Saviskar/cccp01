@@ -1,10 +1,7 @@
 package ludot.rules;
 
 import ludot.board.BoardState;
-import ludot.board.BoardTopology;
-import ludot.board.Piece;
 import ludot.domain.Colour;
-import ludot.domain.Direction;
 import ludot.domain.PieceId;
 
 import java.util.ArrayList;
@@ -23,22 +20,22 @@ public final class BlockBreakPlanner {
     // A-22: the 6 units shared equally among a block's leaving members.
     private static final int TOTAL_BREAK_UNITS = 6;
 
-    public List<BlockBreak> plan(Colour colour, BoardState board, BoardTopology topology) {
+    public List<BlockBreak> plan(Colour colour, BoardState board) {
         List<BlockBreak> breaks = new ArrayList<>();
         for (int cell : board.blockCellsOf(colour)) {
-            planBreak(colour, cell, board, topology).ifPresent(breaks::add);
+            planBreak(colour, cell, board).ifPresent(breaks::add);
         }
         return breaks;
     }
 
-    private Optional<BlockBreak> planBreak(Colour colour, int cell, BoardState board, BoardTopology topology) {
+    private Optional<BlockBreak> planBreak(Colour colour, int cell, BoardState board) {
         List<PieceId> members = board.piecesAt(cell);
         List<PieceId> restricted = members.stream().filter(id -> !board.piece(id).effect().canMove()).toList();
         if (restricted.size() == members.size()) {
             return Optional.empty(); // A-57: every member restricted -- the block does not break at all.
         }
         if (restricted.isEmpty()) {
-            PieceId staying = farthestMember(members, colour, cell, board, topology);
+            PieceId staying = farthestMember(members, board);
             List<PieceId> leaving = members.stream()
                     .filter(id -> !id.equals(staying))
                     .sorted(Comparator.comparingInt(PieceId::number))
@@ -61,17 +58,10 @@ public final class BlockBreakPlanner {
 
     // A-22: the farthest-from-home member stays, tie broken to the lowest piece number (contrast
     // A-17's block-direction tie-break, which goes to clockwise).
-    private PieceId farthestMember(
-            List<PieceId> members, Colour colour, int cell, BoardState board, BoardTopology topology) {
+    private PieceId farthestMember(List<PieceId> members, BoardState board) {
         return members.stream()
-                .max(Comparator.<PieceId>comparingInt(id -> distanceFromHome(id, colour, cell, board, topology))
+                .max(Comparator.<PieceId>comparingInt(board::distanceFromHome)
                         .thenComparing(Comparator.comparingInt(PieceId::number).reversed()))
                 .orElseThrow();
-    }
-
-    private int distanceFromHome(PieceId id, Colour colour, int cell, BoardState board, BoardTopology topology) {
-        Piece piece = board.piece(id);
-        Direction direction = piece.originalDirection().orElseThrow();
-        return topology.distanceFromHome(colour, direction, cell, piece.ccwApproachCrossings());
     }
 }

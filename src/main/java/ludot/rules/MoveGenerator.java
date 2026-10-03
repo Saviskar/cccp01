@@ -189,7 +189,7 @@ public final class MoveGenerator {
             if (cellsPerPiece == 0) {
                 continue; // A-17: a zero-cell block move is illegal.
             }
-            Direction direction = blockDirection(members, cell, colour, board, topology);
+            Direction direction = blockDirection(members, board);
             buildBlockMove(members, cell, roll, cellsPerPiece, direction, colour, board, topology)
                     .ifPresent(moves::add);
         }
@@ -200,14 +200,13 @@ public final class MoveGenerator {
     // member's direction, tie broken to clockwise. Comparing each direction's best distance
     // handles both cases uniformly: when every member agrees, only one direction has any
     // candidate distance at all.
-    private Direction blockDirection(
-            List<PieceId> members, int cell, Colour colour, BoardState board, BoardTopology topology) {
+    private Direction blockDirection(List<PieceId> members, BoardState board) {
         int clockwiseBest = Integer.MIN_VALUE;
         int counterclockwiseBest = Integer.MIN_VALUE;
         for (PieceId id : members) {
             Piece piece = board.piece(id);
             Direction direction = piece.originalDirection().orElseThrow();
-            int distance = topology.distanceFromHome(colour, direction, cell, piece.ccwApproachCrossings());
+            int distance = board.distanceFromHome(id);
             if (direction == Direction.CLOCKWISE) {
                 clockwiseBest = Math.max(clockwiseBest, distance);
             } else {

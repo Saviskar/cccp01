@@ -51,7 +51,7 @@ Rationale: the brief's own numbering convention runs clockwise.
 
 **A-12 — Direction.** A coin toss (heads = clockwise, tails = counterclockwise) happens only when a piece moves from base to X. Teleports never re-toss.
 
-**A-13 — Distance from home.** "Distance from home" means the number of steps remaining along the piece's route (A-05, A-08), **assuming the piece will be eligible under T-7**, since future captures can't be predicted. A piece at Home has distance 0. A piece in base has distance = full route length + 1.
+**A-13 — Distance from home.** "Distance from home" means the number of steps remaining along the piece's route (A-05, A-08), **assuming the piece will be eligible under T-7**, since future captures can't be predicted. A piece at Home has distance 0. A piece in base ranks as farther from home than any piece on the board — its distance is a constant larger than any on-board distance — rather than a computed "full route length + 1", since a Gamma-reversed counterclockwise piece (A-34) can exceed that figure.
 
 ---
 
@@ -237,3 +237,19 @@ order (reusing `GameEnded.placings()`, which `Standings.finalPlacings()` already
 verbatim under the guard); non-finishers are listed unranked, in the fixed turn order R-G-Y-B
 (A-04). If nobody finished, the "Finished" part reads "none". Both lists are plain
 comma-separated (no "and" before the last item, unlike `roundOrderAnnounced`'s list).
+
+---
+
+## 11. Phase 6a — Red Strategy
+
+**A-62 — Red ranking for multi-piece captures.** When a capturing move would capture more than
+one piece (T-8), Red ranks it by the captured piece closest to its own home (A-36). The number
+of pieces captured does not affect the ranking.
+
+**A-63 — Red and block moves.** For A-36, a block move counts as forming a block (its pieces
+remain a block), so Red moves a block as a unit only when every legal move forms a block.
+
+**A-64 — Red, six with no capture or base-exit.** If Red rolls a six and neither a capture
+nor a legal base-exit is available (e.g. no piece remains in base), Red falls back to
+A-36's non-six rule: move the piece closest to home whose move does not form a block,
+forming a block only if every legal move does.

@@ -1,7 +1,6 @@
 package ludot.rules;
 
 import ludot.board.BoardState;
-import ludot.board.BoardTopology;
 import ludot.domain.Briefing;
 import ludot.domain.Colour;
 import ludot.domain.Direction;
@@ -19,7 +18,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BlockBreakPlannerTest {
 
-    private final BoardTopology topology = new BoardTopology();
     private final BlockBreakPlanner planner = new BlockBreakPlanner();
     private BoardState board;
 
@@ -31,7 +29,7 @@ class BlockBreakPlannerTest {
     @Test
     @DisplayName("T-6/A-22: a colour with no blocks gets an empty plan")
     void t6_a22_noBlocksOwned_returnsEmptyPlan() {
-        List<BlockBreak> plan = planner.plan(Colour.RED, board, topology);
+        List<BlockBreak> plan = planner.plan(Colour.RED, board);
 
         assertTrue(plan.isEmpty());
     }
@@ -46,7 +44,7 @@ class BlockBreakPlannerTest {
         board.moveTo(leaving, new OnTrack(10));
         board.assignDirection(leaving, Direction.CLOCKWISE);
 
-        List<BlockBreak> plan = planner.plan(Colour.RED, board, topology);
+        List<BlockBreak> plan = planner.plan(Colour.RED, board);
 
         assertEquals(1, plan.size());
         BlockBreak blockBreak = plan.get(0);
@@ -69,7 +67,7 @@ class BlockBreakPlannerTest {
         board.moveTo(leaving2, new OnTrack(10));
         board.assignDirection(leaving2, Direction.CLOCKWISE);
 
-        List<BlockBreak> plan = planner.plan(Colour.RED, board, topology);
+        List<BlockBreak> plan = planner.plan(Colour.RED, board);
 
         assertEquals(1, plan.size());
         BlockBreak blockBreak = plan.get(0);
@@ -94,7 +92,7 @@ class BlockBreakPlannerTest {
         board.moveTo(leaving3, new OnTrack(10));
         board.assignDirection(leaving3, Direction.CLOCKWISE);
 
-        List<BlockBreak> plan = planner.plan(Colour.RED, board, topology);
+        List<BlockBreak> plan = planner.plan(Colour.RED, board);
 
         assertEquals(1, plan.size());
         BlockBreak blockBreak = plan.get(0);
@@ -113,7 +111,7 @@ class BlockBreakPlannerTest {
         board.moveTo(higher, new OnTrack(10));
         board.assignDirection(higher, Direction.CLOCKWISE); // identical distance: same cell, same direction
 
-        List<BlockBreak> plan = planner.plan(Colour.RED, board, topology);
+        List<BlockBreak> plan = planner.plan(Colour.RED, board);
 
         assertEquals(1, plan.size());
         assertEquals(List.of(lower), plan.get(0).staying());
@@ -136,7 +134,7 @@ class BlockBreakPlannerTest {
         board.moveTo(leavingB, new OnTrack(30));
         board.assignDirection(leavingB, Direction.CLOCKWISE);
 
-        List<BlockBreak> plan = planner.plan(Colour.RED, board, topology);
+        List<BlockBreak> plan = planner.plan(Colour.RED, board);
 
         assertEquals(2, plan.size());
         BlockBreak breakA = plan.stream().filter(b -> b.cell() == 10).findFirst().orElseThrow();
@@ -159,7 +157,7 @@ class BlockBreakPlannerTest {
         board.moveTo(unrestricted, new OnTrack(10));
         board.assignDirection(unrestricted, Direction.CLOCKWISE);
 
-        List<BlockBreak> plan = planner.plan(Colour.RED, board, topology);
+        List<BlockBreak> plan = planner.plan(Colour.RED, board);
 
         assertEquals(1, plan.size());
         BlockBreak blockBreak = plan.get(0);
@@ -183,7 +181,7 @@ class BlockBreakPlannerTest {
         board.moveTo(leaving2, new OnTrack(10));
         board.assignDirection(leaving2, Direction.CLOCKWISE);
 
-        List<BlockBreak> plan = planner.plan(Colour.RED, board, topology);
+        List<BlockBreak> plan = planner.plan(Colour.RED, board);
 
         assertEquals(1, plan.size());
         BlockBreak blockBreak = plan.get(0);
@@ -204,7 +202,7 @@ class BlockBreakPlannerTest {
         board.assignDirection(member2, Direction.CLOCKWISE);
         board.applyEffect(member2, new Briefing());
 
-        List<BlockBreak> plan = planner.plan(Colour.RED, board, topology);
+        List<BlockBreak> plan = planner.plan(Colour.RED, board);
 
         assertFalse(plan.stream().anyMatch(b -> b.cell() == 10));
         assertTrue(plan.isEmpty());
@@ -229,7 +227,7 @@ class BlockBreakPlannerTest {
         board.moveTo(leaving2, new OnTrack(10));
         board.assignDirection(leaving2, Direction.CLOCKWISE);
 
-        List<BlockBreak> plan = planner.plan(Colour.RED, board, topology);
+        List<BlockBreak> plan = planner.plan(Colour.RED, board);
 
         assertEquals(1, plan.size());
         BlockBreak blockBreak = plan.get(0);
