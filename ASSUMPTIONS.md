@@ -296,3 +296,12 @@ neither avoids nor seeks forming or breaking blocks. In the closest-to-home tier
 move is ranked like any other move, by its lowest-numbered member (`MoveRanking.mover`);
 "by the number specified in the roll" is read as describing the usual case, not as
 excluding block moves.
+
+---
+
+## 14. Phase 6d — Blue Strategy
+
+**A-71 — Blue when every piece is forced onto the mystery cell.** If, sweeping from the
+cycle pointer, every movable piece is clockwise and every one of its candidate moves lands
+on the mystery cell (A-39), Blue takes the first such piece in the sweep — choosing among
+its candidates via the `RandomPicker` — and the pointer moves to the piece after it.
