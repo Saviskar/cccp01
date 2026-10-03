@@ -253,3 +253,27 @@ remain a block), so Red moves a block as a unit only when every legal move forms
 nor a legal base-exit is available (e.g. no piece remains in base), Red falls back to
 A-36's non-six rule: move the piece closest to home whose move does not form a block,
 forming a block only if every legal move does.
+
+---
+
+## 12. Phase 6b — Green Strategy
+
+**A-65 — Green's priority order.**
+1. On a six with a piece in base: if a single piece's move would create a new block
+   (landing on another Green piece — a block move does not count), take it; otherwise bring
+   a piece out of base (lowest number).
+2. Otherwise, a block move if legal.
+3. Otherwise, a move that does not break a block, closest to home (A-37).
+4. Only if every legal move breaks a block, a breaking move, closest to home.
+
+Remaining ties go to the lowest piece number (A-40).
+
+**A-66 — Green: "in front of the block".** Read together with bullet 2 ("prioritises moving
+its other pieces home before breaking a block"), Green breaks a block only when every legal
+move breaks a block; any legal non-breaking move, by any piece, is preferred (closest to
+home, A-37). The brief's "pieces in front of it" is treated as the common case of this rule,
+not a separate positional test.
+
+**A-67 — Green and captures.** The brief's "will not look to capture opponent pieces more
+than what is required to enter the home straight" is a limit, not a mandate: Green has no
+capture-priority tier. A capturing move is ranked like any other move within A-65's tiers.
