@@ -23,6 +23,8 @@ import ludot.events.PiecePartiallyMoved;
 import ludot.events.PlayerFinished;
 import ludot.events.ThirdSixIgnored;
 import ludot.events.ThrowIgnoredAfterBlock;
+import ludot.moves.Move;
+import ludot.moves.StepMove;
 import ludot.players.FirstLegalMoveStrategy;
 import ludot.players.PlayerStrategy;
 import ludot.random.Dice;
@@ -47,6 +49,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.doAnswer;
@@ -141,6 +145,24 @@ class TurnControllerTest {
                     .findFirst()
                     .orElseThrow();
         };
+    }
+
+    @Test
+    @DisplayName("DESIGN.md §8.1: a strategy returning a move outside the legal list is rejected")
+    void lspSafeguardRejectsAMoveOutsideTheLegalList() {
+        PieceId id = new PieceId(Colour.RED, 1);
+        board.moveTo(id, new OnTrack(10));
+        board.assignDirection(id, Direction.CLOCKWISE);
+        when(dice.roll()).thenReturn(4);
+        // Not one of the moves MoveGenerator would offer for this roll/board: a fabricated,
+        // unrelated destination the strategy is never given.
+        Move bogus = new StepMove(
+                id, new OnTrack(10), new OnTrack(20), 4, Direction.CLOCKWISE, false, false, false, false, false);
+        Player rogue = new Player(Colour.RED, (moves, v) -> bogus);
+
+        IllegalStateException thrown = assertThrows(
+                IllegalStateException.class, () -> controller.playTurn(rogue, board, standings, view()));
+        assertTrue(thrown.getMessage().contains("outside the legal list"));
     }
 
     @Test

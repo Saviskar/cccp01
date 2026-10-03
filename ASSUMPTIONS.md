@@ -305,3 +305,17 @@ excluding block moves.
 cycle pointer, every movable piece is clockwise and every one of its candidate moves lands
 on the mystery cell (A-39), Blue takes the first such piece in the sweep — choosing among
 its candidates via the `RandomPicker` — and the pointer moves to the piece after it.
+
+---
+
+## 15. Phase 7 — Composition Root
+
+**A-72 — Seed announcement wording and placement.** `SeedSelected` is not
+a brief event; A-44 licenses an additional message, but the exact wording
+and the decision to publish it first (ahead of every other event,
+including `PiecesIntroduced`) are recorded here, not left to a generic
+A-44 reference. The message follows the brief's prose style as two
+sentences (cf. A-60's redirect line): "This run uses seed <n>." then
+"Rerun with --seed <n> to reproduce this exact game." Publishing it first
+means a run's seed is known even if the transcript is interrupted or
+truncated.

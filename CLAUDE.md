@@ -19,8 +19,8 @@ A command-line simulation of LUDO-T (Ludo with extended rules). It runs with no 
 - **Enums** for `Colour` and `Direction`; colour offsets computed from the enum (A-02).
 - Named constants for every rule number (`TRACK_SIZE = 52`, `HOME_STRAIGHT_LENGTH = 5`, `MAX_ROUNDS = 1000`, etc.). No magic numbers.
 - `final` fields by default; no public setters; constructor injection only.
-- Only the seeded implementations in `ludot.random` may use `java.util.Random`. Nothing else may use `Random`, `Math.random()` or `System.currentTimeMillis()` for game logic.
-- Only `ConsoleReporter` may use `System.out`.
+- Only the seeded implementations in `ludot.random` may use `java.util.Random`. Nothing else may use `Random`, `Math.random()` or `System.currentTimeMillis()` for game logic. **Exception:** `ludot.app.Main` may call `System.nanoTime()` once, only to choose a default seed when `--seed` is absent — composition-root seed selection, not game logic.
+- Only `ConsoleReporter` may use `System.out`. **Exception:** `Main` is the one place allowed to write to `System.err` and call `System.exit`, solely to report a malformed `--seed` argument; this does not widen "only `ConsoleReporter` prints", which still governs all game output on `System.out`.
 - No `null` for "no effect" — use `NoEffect`. Use `Optional` for genuinely optional values (e.g. mystery cell location).
 - Keep methods under ~25 lines; extract well-named private methods instead.
 

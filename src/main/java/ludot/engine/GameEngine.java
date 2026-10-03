@@ -11,6 +11,7 @@ import ludot.events.OpeningRollRolled;
 import ludot.events.OpeningRollWinnerDetermined;
 import ludot.events.PiecesIntroduced;
 import ludot.events.RoundOrderAnnounced;
+import ludot.events.SeedSelected;
 import ludot.players.PlayerStrategy;
 import ludot.random.Dice;
 
@@ -30,12 +31,15 @@ public final class GameEngine {
 
     private static final int PIECES_PER_COLOUR = 4;
 
+    private final long seed;
     private final Dice dice;
     private final RoundManager roundManager;
     private final EventBus events;
     private final Map<Colour, PlayerStrategy> strategies;
 
-    public GameEngine(Dice dice, RoundManager roundManager, EventBus events, Map<Colour, PlayerStrategy> strategies) {
+    public GameEngine(
+            long seed, Dice dice, RoundManager roundManager, EventBus events, Map<Colour, PlayerStrategy> strategies) {
+        this.seed = seed;
         this.dice = dice;
         this.roundManager = roundManager;
         this.events = events;
@@ -43,6 +47,9 @@ public final class GameEngine {
     }
 
     public void run(BoardState board, GameView view) {
+        // A-72: announces the seed this run used (given or defaulted by Main), so every run is
+        // replayable; published here, not by Main, so the engine stays the sole event publisher.
+        events.publish(new SeedSelected(seed));
         introducePieces(board);
 
         Colour winner = openingRoll();
