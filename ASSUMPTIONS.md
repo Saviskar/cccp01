@@ -209,3 +209,31 @@ if it lands. Captures at both cells count, but grant at most one bonus roll (A-2
 turns a clockwise piece counterclockwise, its counterclockwise crossing count is unchanged (it
 counts only counterclockwise passes, A-08), so it must pass its Approach counterclockwise twice
 before entering the home straight.
+
+---
+
+## 10. Phase 5 Output Layer
+
+**A-59 — Piece references in move messages.** In Section 3's templates, "X" is the colour
+placeholder, so "piece X[Name]" renders as the colour letter plus piece number (e.g. R1),
+matching §1.1's naming. The ordinary move template's "piece X" is read the same way and also
+renders as R1-style (e.g. "Red moves piece R1 from location 5 to 11 by 6 units in clockwise
+direction."), since a bare "X" would not identify the piece. Templates written as "[Color X]
+piece [Name]" keep the bare number (e.g. "Red piece 1").
+
+**A-60 — Redirected teleport messages.** When A-31 redirects a teleport to base, the "lands on a
+mystery cell and is teleported to \<location\>" line names the drawn destination; then an extra
+A-44 line explains the redirect (e.g. "Alpha is occupied by a green blockade, so red piece 1 is
+sent to base instead." — A-43's capitalise-only-at-sentence-start rule applies: the special-cell
+name opens the sentence and is capitalised, the two colour words are mid-sentence and stay
+lowercase); then the per-piece line uses the Base template ("teleported to Base."), reflecting
+where the piece actually ends up.
+
+**A-61 — Round-guard ending.** When the round guard (A-42) ends the game, no placing is
+re-announced — every finisher already got its live message (A-41, including place 1's
+"wins!!!"). Instead one summary line is printed: "The game reached the 1000-round limit.
+Finished: 1st red, 2nd green. Did not finish: yellow, blue." Finishers are listed in finishing
+order (reusing `GameEnded.placings()`, which `Standings.finalPlacings()` already returns
+verbatim under the guard); non-finishers are listed unranked, in the fixed turn order R-G-Y-B
+(A-04). If nobody finished, the "Finished" part reads "none". Both lists are plain
+comma-separated (no "and" before the last item, unlike `roundOrderAnnounced`'s list).

@@ -265,5 +265,6 @@ class TeleportToAlphaTest {
         PieceTeleported event = captor.getValue();
         assertEquals(new InBase(), event.finalPosition());
         assertTrue(event.redirectedToBase());
+        assertEquals(Optional.of(Colour.GREEN), event.blockingColour()); // A-60
     }
 }

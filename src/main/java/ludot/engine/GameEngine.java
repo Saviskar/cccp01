@@ -61,7 +61,8 @@ public final class GameEngine {
         }
 
         boolean stoppedByRoundGuard = !standings.isOver();
-        events.publish(new GameEnded(standings.finalPlacings(TURN_ORDER), stoppedByRoundGuard));
+        List<Colour> notFinished = TURN_ORDER.stream().filter(colour -> !standings.hasFinished(colour)).toList();
+        events.publish(new GameEnded(standings.finalPlacings(TURN_ORDER), stoppedByRoundGuard, notFinished));
     }
 
     private void introducePieces(BoardState board) {
